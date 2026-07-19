@@ -1,42 +1,60 @@
 # Implementation plan
 
+Operator expanded specs 00/03/04/07/08/10 (committed as its own `Spec:` commit).
+12 new ACs, coverage 69→81. Real provider paths never run in tests (MOCK_LLM=1); the
+deterministic mock is enriched so every behavior is provable offline. Real code paths
+(caching, provider options, native-search routing) are covered by pure unit tests.
+
 ## Now
 
-- None — curved-glass CRT polish complete and green.
+- [ ] Increment B — request assembly: Anthropic ephemeral caching (stable-prefix + latest-message
+  breakpoint via prepareStep), reasoning provider options, cache diagnostics, mock reasoning +
+  streamed tool-input (AC-LLM-6, AC-LLM-7)
+- [ ] Increment C — search routing (pure resolver) + SearchSource/citation dedup + `search_web`
+  tool + availability needs-location + prompt scoping (AC-SRCH-5, AC-SRCH-6, AC-SRCH-7, AC-SRCH-8)
+- [ ] Increment D — chat UI: progressive text + per-tool lifecycle rows (running→terminal, safe
+  summaries, source links, reload restores terminal state) (AC-CHAT-9)
+- [ ] Increment E — NEURAL TRACE overlay (globals.css + component), chat driven by reasoning,
+  dashboard generate → streamText UI stream consumed client-side driving overlay + card refresh
+  without reload (AC-CHAT-10, AC-REC-7, AC-UI-12)
+- [ ] Final: `./verify.sh --done` → 81/81
 
-## Next
+## Key design decisions (from spec + API recon)
 
-- None.
-
-## Done
-
-- [x] Curved-glass CRT screen bulge with responsive tube corners, edge refraction, and specular highlight (`specs/10`; AC-UI-2)
-- [x] Natural grape icon palettes: shared silhouette with green-gold, blue-purple, copper-pink, and rose-pink skin treatments (`specs/10`; AC-UI-6)
-- [x] Architecture and data foundation (`specs/00`, `specs/01`, `specs/09`; AC-ARCH-1–5, AC-DATA-1–3, AC-CURR-1)
-- [x] Household auth, profile CRUD/selection, and onboarding quiz/skip (`specs/02`, `specs/06`, `specs/11`; AC-AUTH-1–5, AC-PROF-1–5, AC-MEM-1–2)
-- [x] LLM registry, deterministic mock, memory prompt, tools, chat persistence, and availability providers (`specs/03`, `specs/04`, `specs/08`; AC-LLM-1–5, AC-CHAT-1–6, AC-MEM-3/5, AC-SRCH-1–4, AC-DATA-6)
-- [x] Household journal, structured detail, filters, deletion, and grouped shared tastings (`specs/04`, `specs/05`; AC-CHAT-7–8, AC-JRNL-1–5)
-- [x] Recommendation generation/targeting/lifecycle, household isolation audit, and complete palate view (`specs/01`, `specs/06`, `specs/07`; AC-REC-1–6, AC-DATA-4–5, AC-MEM-4)
-- [x] Curriculum library/deep links and complete CRT/mobile/pixel-icon interface (`specs/09`, `specs/10`; AC-CURR-2–4, AC-UI-1–11)
-- [x] Final acceptance audit: `./verify.sh --done` passes with all 69 criteria covered.
+- `@ai-sdk/google@^2` + `@ai-sdk/openai-compatible@^1` installed (npm online now; lockfile updated).
+- Providers map: anthropic/openai/google/openai-compatible. openai-compatible resolves only when
+  `OPENAI_COMPATIBLE_BASE_URL` set AND id allowlisted in AVAILABLE_MODELS; base URL is server-only.
+- `getModelCapabilities(id)`: `{ provider, tools, reasoning, nativeSearch: "anthropic"|"openai"|"google"|null,
+  nativeSearchCombinesWithTools, promptCaching }`. Conservative exact-model catalog; unknown → false/null.
+- Caching: two system messages (stable prefix w/ `providerOptions.anthropic.cacheControl:{type:"ephemeral"}`,
+  dynamic memory w/o), `allowSystemInMessages:true`; latest model message gets a breakpoint, re-applied
+  in `prepareStep`. Non-anthropic → plain `system` string, no anthropic options. Dashboard: stable-prefix
+  breakpoint only (single request, no prepareStep history breakpoint).
+- Reasoning: anthropic `providerOptions.anthropic.thinking`; openai reasoning models
+  `providerOptions.openai.{reasoningEffort,reasoningSummary}`; mock/unsupported → none.
+  Stream reasoning+sources to client via `toUIMessageStreamResponse({sendReasoning:true,sendSources:true})`.
+- Native search tools built ONLY in registry/request module: anthropic `tools.webSearch_20250305`,
+  openai `tools.webSearch`, google `tools.googleSearch`. Function tools ALWAYS included; when a model
+  can't combine native+function tools, run a bounded native search pass then the tool pass.
+- Search routing is a pure resolver `resolveSearchRoute({modelId,nativeEnabled,tavilyKey,mock})`:
+  mock→fixture(no net); native-capable→native; else fixture/tavily/null; none→unavailable.
+- SearchSource adds server-trusted `provider`+`query`; dedup by canonical URL first-use order; persisted
+  as tool-result parts; UI renders safe links only (no raw JSON/ids/payloads).
+- NEURAL TRACE: fixed full-viewport, pointer-events:none, not in a11y tree, white/warm 45–55% opacity,
+  no opaque backdrop; chat driven by reasoning parts (dissolve when final text begins); dashboard driven
+  by reasoning OR safe save_recommendation tool activity; reduced-motion = static but readable.
+- Mock triggers: existing unchanged; add `MOCK:REASON` (reasoning→tool→reasoning→answer, delayed) for
+  chat overlay/reasoning; dashboard REC/JOINTREC drive overlay via tool activity (no-reasoning fallback).
 
 ## Discoveries
 
-- 2026-07-18: Repository began as a harness-only project with no application files, tests, or durable implementation plan; completion coverage was 0/69.
-- 2026-07-18: Better Auth's current compatible release requires Drizzle ORM 0.45.2+, so the foundation aligns the ORM range with that declared peer dependency.
-- 2026-07-18: Foundation increment is green under `./verify.sh`; acceptance coverage is 9/69 before the authentication increment.
-- 2026-07-18: Active-profile cookies include the Better Auth session id, are httpOnly, and set `secure` from the configured URL scheme so HTTP e2e works consistently in Chromium and WebKit.
-- 2026-07-18: Better Auth rate limiting remains enabled normally and is disabled only under `MOCK_LLM=1`, preventing parallel desktop/mobile journeys from rate-limiting each other.
-- 2026-07-18: Auth/profile/onboarding increment is green under `./verify.sh`; acceptance coverage is now 21/69.
-- 2026-07-18: AI SDK v5's prescribed `MockLanguageModelV2` imports its `msw` peer at runtime, so `msw` is an explicit test-only dependency even though no HTTP mocking layer is otherwise needed.
-- 2026-07-18: LLM/chat/search increment is green across integration plus Chromium/WebKit journeys; acceptance coverage is now 39/69.
-- 2026-07-18: Journal/shared-tasting increment is green under both browser projects; acceptance coverage is now 46/69.
-- 2026-07-18: Recommendation/isolation/profile increment is green in integration and both browser projects; acceptance coverage is now 55/69.
-- 2026-07-18: Curriculum/UI increment is green across unit, build, Chromium, and WebKit; test references now cover all 69 acceptance criteria pending the completion gate.
-- 2026-07-18: Completion gate passed: typecheck, lint, guard, standalone build, 15 unit tests, 15 integration tests, 8 dual-project e2e runs, and 69/69 AC coverage.
-- 2026-07-18: No font was ever actually bundled — globals.css named "JetBrains Mono" without loading it, so every visitor saw their OS mono fallback. Spec 10 mandates Geist Mono via next/font; now loaded from the `geist` package (local woff2, no build-time network, keeps `verify.sh` builds deterministic offline).
-- 2026-07-18: The old `PixelIcon` base stamped a generic 8×8 accent square + highlight pip over every sprite while each icon's own rects rendered in near-invisible `#1A1A1C`, so all eight icons read as identical blobs. Redrawn: base is a bare `<g fill={color}>` wrapper; each sprite supplies outline + inset-accent + ≤1 highlight rects.
-- 2026-07-18: Tailwind v4 emits utilities inside `@layer utilities`, so any UNLAYERED rule in globals.css silently beats utility classes (unlayered > layered regardless of specificity). The bare `a { color: var(--cyan) }` rule was overriding every `text-[var(--…)]` utility on links app-wide (all nav links rendered cyan). Element-level defaults in globals.css must live in `@layer base`.
-- 2026-07-18: A `next dev` server running in the same checkout corrupts `.next` for `verify.sh`'s build+`next start` e2e phase (webpack-runtime `TypeError: a[d] is not a function`, pages 500). Stop `npm run dev` before running the gate.
-- 2026-07-18: Operator authorized a specs/10-ui.md update (own commit, since guard.sh only rejects *uncommitted* operator-file changes): flat 3%-white scanlines replaced by a layered CRT surface (fractal-noise grain, corner vignette, dark 2px scanlines, cyan rolling bar, stepped flicker — adapted from the operator's "Fold Tactical" reference) plus faint dual-layer currentColor phosphor bloom on all text. AC-UI-2's wording still holds verbatim (same `scanlines` testid, `pointer-events: none`, reduced-motion kills the animations), so no test changes were needed.
-- 2026-07-19: Operator authorized the grape sprite spec amendment in its own commit. Natural skin appearance is derived centrally from existing slug + red/white classification, so the visual polish requires no schema or seed migration.
+- 2026-07-19: Operator confirmed (via /goal session) the 6 uncommitted spec edits are authorized;
+  committed as `Spec: operator-approved provider expansion...` before implementing. Guard only rejects
+  *uncommitted* operator-file changes, so the spec commit clears it.
+- 2026-07-19: `@ai-sdk/google` 2.0.82 + `@ai-sdk/openai-compatible` 1.0.46 installed and export the
+  expected factories/tools. Native search tools exist: anthropic.tools.webSearch_20250305,
+  openai.tools.webSearch, google.tools.googleSearch.
+- 2026-07-19: AI SDK v5 supports system-message providerOptions, prepareStep({steps,stepNumber,model,
+  messages})→{messages}, readUIMessageStream, and toUIMessageStreamResponse sendReasoning/sendSources.
+  allowSystemInMessages defaults to a warning → set true when passing system-in-messages.
+- (historical) Completion gate previously passed at 69/69; the prior Done items remain intact.

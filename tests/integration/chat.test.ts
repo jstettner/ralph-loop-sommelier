@@ -1,4 +1,7 @@
 import { and, eq } from "drizzle-orm";
+import { streamText, stepCountIs } from "ai";
+import type { LanguageModelV2StreamPart } from "@ai-sdk/provider";
+import { MockLanguageModelV2, simulateReadableStream } from "ai/test";
 import { afterAll, describe, expect, it } from "vitest";
 import { POST as postChat } from "../../src/app/api/chat/route";
 import { POST as createConversation } from "../../src/app/api/conversations/route";
@@ -92,6 +95,41 @@ describe("chat route and attributed tools", () => {
     }
     expect(db.select().from(tastingNotes).where(eq(tastingNotes.householdId, fixture.householdId)).all().length).toBeGreaterThanOrEqual(3);
     expect(db.select().from(recommendations).where(eq(recommendations.householdId, fixture.householdId)).all()).toHaveLength(2);
+  });
+
+  it("AC-LLM-8 streams and executes application tools against a representative Gemma 4 model", async () => {
+    const fixture = await makeFixture("gemma-contract", ["Alex"]);
+    const profileId = fixture.profileIds[0] as string;
+    const tastingInput = {
+      taster_profile_id: profileId,
+      wine: { name: "Gemma Gamay", grapes: ["Gamay"], style: "red" as const },
+      note: { nose: ["cherry"], palate: { sweetness: 1, acidity: 4, tannin: 2, alcohol: 3, body: 2, flavors: ["cherry"] }, verdict: "liked" as const },
+    };
+    // A self-hosted OpenAI-compatible model (Gemma 4) is only exposed after it proves streaming
+    // text plus the enabled tool contracts. This fixture stands in for that inference server.
+    const gemma = new MockLanguageModelV2({
+      provider: "openai-compatible", modelId: "gemma-4-12b-it",
+      doStream: async ({ prompt }) => {
+        const hasToolResult = prompt.some((message) => message.role === "tool");
+        const chunks: LanguageModelV2StreamPart[] = hasToolResult
+          ? [{ type: "stream-start", warnings: [] }, { type: "text-start", id: "g" },
+             { type: "text-delta", id: "g", delta: "Logged your Gamay." }, { type: "text-end", id: "g" },
+             { type: "finish", finishReason: "stop", usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }]
+          : [{ type: "stream-start", warnings: [] }, { type: "text-start", id: "g" },
+             { type: "text-delta", id: "g", delta: "Recording… " }, { type: "text-end", id: "g" },
+             { type: "tool-call", toolCallId: "gemma-1", toolName: "record_tasting_note", input: JSON.stringify(tastingInput) },
+             { type: "finish", finishReason: "tool-calls", usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } }];
+        return { stream: simulateReadableStream({ chunks, chunkDelayInMs: 0 }) };
+      },
+    });
+    const tools = createChatTools({ conversationId: fixture.conversationId, householdId: fixture.householdId, participantIds: fixture.profileIds });
+    const result = streamText({ model: gemma, tools, messages: [{ role: "user", content: "Log my tasting" }], stopWhen: stepCountIs(2) });
+    let text = "";
+    for await (const delta of result.textStream) text += delta;
+    expect(text).toContain("Logged your Gamay.");
+    const notes = db.select().from(tastingNotes).where(eq(tastingNotes.householdId, fixture.householdId)).all();
+    expect(notes).toHaveLength(1);
+    expect(db.select().from(wines).where(eq(wines.id, notes[0]?.wineId ?? "")).get()?.name).toBe("Gemma Gamay");
   });
 
   it("AC-CHAT-5 and AC-DATA-5 reject non-participant attribution and foreign-household conversation context", async () => {
