@@ -16,14 +16,21 @@ high-acid — try a cru Beaujolais").
 1. **Chat**: the agent calls `save_recommendation` (specs/04) — targeted at a
    participant, or joint when recommending for everyone present.
 2. **Dashboard**: two generate buttons calling `POST /api/recommendations/generate`:
-   - `mode: "profile"` — "Suggest my next bottle": single non-chat `generateText`
-     call (same registry + memory assembly as specs/04, active profile's context)
+   - `mode: "profile"` — "Suggest my next bottle": single non-chat `streamText`
+     run (same registry + memory assembly as specs/04, active profile's context)
      with `save_recommendation` available; persists 1–3 recommendations for the
-     active profile.
+     active profile while streaming reasoning and tool activity to the client.
    - `mode: "joint"` — "Suggest a bottle for all of us" (shown only when the household
      has ≥2 profiles): same call with **every** profile's palate in context,
      instructed to find the intersection; persists 1–3 joint recommendations.
    Under `MOCK_LLM=1` these yield the mock's fixed recommendation(s).
+
+Both dashboard actions use the full-screen `NEURAL TRACE` overlay from specs/10 for
+provider-visible reasoning summaries. Safe `save_recommendation` activity appears in
+the same overlay when a model emits no reasoning, so the user sees genuine progress
+rather than an opaque `THINKING...` state. The response remains a non-chat operation:
+it does not create a conversation or permanent transcript. The overlay dissolves once
+generation completes, then the new recommendation cards render without a page reload.
 
 ## Lifecycle
 
@@ -66,3 +73,7 @@ The post-login landing page. Sections:
   "Up next" (e2e).
 - **AC-REC-6**: The joint generate button and "For the table" section are absent for
   single-profile households (e2e or integration).
+- **AC-REC-7**: Both dashboard generate modes progressively display their streamed
+  neural trace and safe recommendation-tool state, dissolve the overlay on completion,
+  and render the newly persisted cards without reload; errors close the active trace
+  and remain actionable in the underlying dashboard (desktop + mobile e2e).

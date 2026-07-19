@@ -20,7 +20,7 @@ purchasable next bottles.
 | Database | **SQLite via better-sqlite3** | Single file DB. Path from `DATABASE_URL` (default `./data/wine.db`). |
 | ORM | **Drizzle ORM** | Schema in `src/db/schema.ts`. Migrations via `drizzle-kit`. One canonical schema. |
 | Auth | **Better Auth** (email + password) | Drizzle adapter, SQLite. No external auth service. |
-| LLM layer | **Vercel AI SDK (`ai` v5+)** | Provider registry; see specs/03-llm-provider.md. |
+| LLM layer | **Vercel AI SDK (`ai` v5+)** | One provider registry for Anthropic, OpenAI, Google Gemini, and operator-configured OpenAI-compatible endpoints; see specs/03-llm-provider.md. |
 | Default model | `anthropic:claude-opus-4-8` via `@ai-sdk/anthropic` | Other providers env-gated. |
 | Validation | **Zod** | All API inputs and tool schemas. |
 | Unit/integration tests | **Vitest** | `tests/unit/`, `tests/integration/`. |
@@ -79,9 +79,13 @@ specs/                  # these files — source of truth, operator-owned
 | `BETTER_AUTH_URL` | Base URL (default `http://localhost:3000`; e2e uses `:3100`). |
 | `ANTHROPIC_API_KEY` | Enables Anthropic models in the registry. |
 | `OPENAI_API_KEY` | Enables OpenAI models in the registry. |
-| `AVAILABLE_MODELS` | Comma list of `provider:model-id` the operator exposes, e.g. `anthropic:claude-opus-4-8,anthropic:claude-sonnet-4-6`. |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Enables Google Gemini models in the registry. |
+| `OPENAI_COMPATIBLE_BASE_URL` | Optional operator-controlled base URL for an OpenAI-compatible inference server (for example LM Studio, llama.cpp, or vLLM). Never accepted from a client request. |
+| `OPENAI_COMPATIBLE_API_KEY` | Optional bearer token for the OpenAI-compatible endpoint; local endpoints may leave it empty. |
+| `AVAILABLE_MODELS` | Comma list of `provider:model-id` entries the operator exposes. Supported provider prefixes are `anthropic`, `openai`, `google`, and `openai-compatible`; for example `anthropic:claude-opus-4-8,google:gemini-3.5-flash,openai-compatible:gemma-4-12b-it`. |
 | `DEFAULT_MODEL` | One entry from `AVAILABLE_MODELS`. Default `anthropic:claude-opus-4-8`. |
-| `TAVILY_API_KEY` | Enables real web search for availability (specs/08). Absent → graceful degrade. |
+| `NATIVE_WEB_SEARCH` | `1` (default) allows an exact model declared native-search-capable to use its provider's built-in web search; `0` disables all native provider search without disabling the model. |
+| `TAVILY_API_KEY` | Enables provider-neutral live web search as fallback when native model search is disabled, unsupported, or fails (specs/08). Absent → graceful degrade. |
 | `MOCK_LLM` | `1` → registry serves only the deterministic mock provider (specs/03). Set for all tests/e2e. |
 
 `.env.example` documents every variable with comments and safe placeholder values.
