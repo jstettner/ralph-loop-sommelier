@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { recommendations } from "@/db/schema";
+import { deduplicateVisibleRecommendations } from "@/server/recommendations";
 import { getActiveProfileFromRequest, getHouseholdSession } from "@/server/session";
 
 const targetSchema = z.enum(["active", "joint", "all"]);
@@ -16,8 +17,10 @@ export async function GET(request: Request) {
   if (target.data === "active") {
     const active = getActiveProfileFromRequest(session, request);
     if (!active) return NextResponse.json({ error: "Active profile required." }, { status: 409 });
-    return NextResponse.json({ recommendations: db.select().from(recommendations).where(and(base, eq(recommendations.profileId, active.id))).orderBy(desc(recommendations.createdAt)).all() });
+    const rows = db.select().from(recommendations).where(and(base, eq(recommendations.profileId, active.id))).orderBy(desc(recommendations.createdAt)).all();
+    return NextResponse.json({ recommendations: deduplicateVisibleRecommendations(rows) });
   }
   const condition = target.data === "joint" ? and(base, isNull(recommendations.profileId)) : base;
-  return NextResponse.json({ recommendations: db.select().from(recommendations).where(condition).orderBy(desc(recommendations.createdAt)).all() });
+  const rows = db.select().from(recommendations).where(condition).orderBy(desc(recommendations.createdAt)).all();
+  return NextResponse.json({ recommendations: deduplicateVisibleRecommendations(rows) });
 }

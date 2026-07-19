@@ -5,6 +5,14 @@ Operator expanded specs 00/03/04/07/08/10 (committed as its own `Spec:` commit).
 deterministic mock is enriched so every behavior is provable offline. Real code paths
 (caching, provider options, native-search routing) are covered by pure unit tests.
 
+## Now
+
+- [x] AC-REC-8 implementation and completion audit finished.
+
+## Next
+
+- [ ] None — all specified work is complete.
+
 ## Done this session
 
 - [x] Increment A — registry + capabilities (AC-LLM-1 reword, AC-LLM-8, AC-LLM-9 catalog) — committed 031c673
@@ -30,12 +38,21 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
   no trace). Dashboard generate now streams a UI message stream; the client consumes it to drive the
   overlay from safe save_recommendation activity, then refreshes cards without reload. Shared
   tool-summary helpers extracted to `src/lib/tool-summary.ts` (AC-CHAT-10, AC-REC-7, AC-UI-12).
+- [x] Increment F — visible recommendation dedup: normalized NFKC/case/whitespace wine name +
+  producer identity, household-wide write reuse across profile/joint targets, safe reactivation
+  conflict, and read-time protection for legacy rows. Integration proves cross-section normalized
+  identity and lifecycle behavior; desktop/mobile e2e proves repeated generation stays at one card
+  (AC-REC-8). The e2e launcher now correctly runs the pinned standalone output with copied static
+  assets instead of unsupported `next start`.
 
-## Done — goal complete
+## Done — prior goal complete
 
 - [x] `./verify.sh --done` passes: typecheck, lint, guard, standalone build, unit, integration,
   and Playwright e2e (desktop + mobile) all green; **all 81 acceptance criteria referenced by
   genuine tests**. Verified stable across repeated full e2e runs.
+- [x] `./verify.sh` and `./verify.sh --done` pass after Increment F: typecheck, lint,
+  guard, standalone build, 32 unit tests, 21 integration tests, and 14 desktop/mobile
+  Playwright tests all green; **all 82 acceptance criteria are covered**.
 
 ## Key design decisions (from spec + API recon)
 
@@ -66,6 +83,13 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Discoveries
 
+- 2026-07-19: Operator approved AC-REC-8 as intentionally incomplete. Duplicate
+  recommendation identity is normalized wine name + producer across all visible
+  recommendation sections; implementation now reuses visible matches while allowing a wine to
+  be recommended again after all matching records are dismissed or tasted.
+- 2026-07-19: Next 15.5 mutates/serves incompatible manifests when `next start` is used with
+  `output: "standalone"`, causing `/static/chunks/main-app.js` 404s. `start:e2e` now copies
+  `.next/static` + `public` into the standalone bundle and launches its `server.js` directly.
 - 2026-07-19: Operator confirmed (via /goal session) the 6 uncommitted spec edits are authorized;
   committed as `Spec: operator-approved provider expansion...` before implementing. Guard only rejects
   *uncommitted* operator-file changes, so the spec commit clears it.

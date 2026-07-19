@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { conversations, palateProfiles, profiles, recommendations, tastingNotes, wines } from "@/db/schema";
 import { getSearchProvider, toSearchSources } from "@/lib/search";
+import { findVisibleRecommendation } from "@/server/recommendations";
 
 const styleSchema = z.enum(["red", "white", "rose", "sparkling", "dessert", "fortified", "orange"]);
 const priceBandSchema = z.enum(["under_15", "15_30", "30_60", "over_60"]);
@@ -29,8 +30,10 @@ export const updatePalateProfileSchema = z.object({
   adventurousness: dimensionSchema.optional(), notes: z.string().min(1).optional(),
 });
 
+const recommendationTextSchema = z.string().trim().min(1).transform((value) => value.replace(/\s+/gu, " "));
+
 export const saveRecommendationSchema = z.object({
-  for_profile_id: z.string().uuid().nullable(), wine_name: z.string().min(1), producer: z.string().optional(),
+  for_profile_id: z.string().uuid().nullable(), wine_name: recommendationTextSchema, producer: recommendationTextSchema.optional(),
   grape: z.string().optional(), region: z.string().optional(), style: styleSchema.optional(), price_band: priceBandSchema.optional(),
   reasoning: z.string().min(1),
 });
@@ -96,9 +99,16 @@ export function createChatTools(context: ToolContext) {
       },
     }),
     save_recommendation: tool({
-      description: "Save a concrete recommendation for one participant or jointly for the household.", inputSchema: saveRecommendationSchema,
+      description: "Save a concrete recommendation for one participant or jointly for the household. Reuse an existing visible recommendation for the same normalized wine name and producer rather than creating a duplicate.", inputSchema: saveRecommendationSchema,
       execute: async (input) => {
         validateContext(context, input.for_profile_id);
+        const existing = findVisibleRecommendation(context.householdId, {
+          wineName: input.wine_name,
+          producer: input.producer,
+        });
+        if (existing) {
+          return { saved: false, duplicate: true, recommendation_id: existing.id };
+        }
         const id = crypto.randomUUID();
         db.insert(recommendations).values({
           id, householdId: context.householdId, profileId: input.for_profile_id,

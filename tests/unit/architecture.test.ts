@@ -31,7 +31,12 @@ describe("architecture contracts", () => {
       "test:unit", "test:integration", "test:e2e", "db:migrate", "db:seed", "db:reset:test",
     ];
     expect(Object.keys(manifest.scripts ?? {})).toEqual(expect.arrayContaining(required));
-    expect(manifest.scripts?.["start:e2e"]).toContain("next start -p 3100");
+    expect(manifest.scripts?.["start:e2e"]).toContain("scripts/start-e2e.ts");
+    const launcher = fs.readFileSync(path.join(root, "scripts/start-e2e.ts"), "utf8");
+    expect(launcher).toContain('path.join(root, ".next", "standalone")');
+    expect(launcher).toContain('DATABASE_URL: path.join(root, "data", "wine-e2e.db")');
+    expect(launcher).toContain('MOCK_LLM: "1"');
+    expect(launcher).toContain('PORT: "3100"');
   });
 
   it("AC-ARCH-5 documents the complete environment contract", () => {

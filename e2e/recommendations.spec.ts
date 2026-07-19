@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("AC-REC-7 dashboard generation streams a neural trace and renders new cards without reload", async ({ page }, testInfo) => {
+test("AC-REC-7 AC-REC-8 dashboard generation streams a neural trace, renders without reload, and does not duplicate a visible wine", async ({ page }, testInfo) => {
   await page.goto("/signup");
   await page.getByLabel("EMAIL").fill(`rec7-${testInfo.project.name}@example.test`);
   await page.getByLabel("PASSWORD").fill("correct-horse");
@@ -27,6 +27,12 @@ test("AC-REC-7 dashboard generation streams a neural trace and renders new cards
   await expect(upNext).toContainText("Mendoza Malbec");
   expect(page.url()).toBe(url); // rendered via refresh, not a navigation/reload
   await expect(page.getByTestId("neural-trace")).toBeHidden(); // dissolves on completion
+
+  // ── Repeating the same normalized recommendation keeps exactly one visible card ──
+  await page.getByRole("button", { name: "SUGGEST MY NEXT BOTTLE" }).click();
+  await expect(page.getByTestId("neural-trace")).toBeVisible();
+  await expect(page.getByTestId("neural-trace")).toBeHidden();
+  await expect(upNext.locator("article").filter({ hasText: "Mendoza Malbec" })).toHaveCount(1);
 
   // ── Joint mode: same overlay behaviour, new "for the table" card without reload ──
   await page.getByRole("button", { name: "SUGGEST A BOTTLE FOR ALL OF US" }).click();

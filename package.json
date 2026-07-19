@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "start:e2e": "DATABASE_URL=./data/wine-e2e.db BETTER_AUTH_SECRET=e2e-secret-at-least-32-characters BETTER_AUTH_URL=http://127.0.0.1:3100 MOCK_LLM=1 next start -p 3100",
+    "start:e2e": "node --import tsx scripts/start-e2e.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test:unit": "vitest run tests/unit",

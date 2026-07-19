@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { palateProfiles, recommendations, tastingNotes, wines } from "@/db/schema";
+import { palateProfiles, tastingNotes, wines } from "@/db/schema";
 import { GenerateRecommendations, RecommendationStatus } from "@/components/recommendation-controls";
 import { listProfiles } from "@/server/profiles";
 import { Barrel, Bottle, Sparkle } from "@/components/icons";
 import { getActiveProfile, getHouseholdSession } from "@/server/session";
+import { listVisibleRecommendations } from "@/server/recommendations";
 
 export default async function DashboardPage() {
   const session = await getHouseholdSession();
@@ -14,14 +15,9 @@ export default async function DashboardPage() {
   if (!profile) return null;
   const householdProfiles = listProfiles(session.user.id);
   const palate = db.select().from(palateProfiles).where(eq(palateProfiles.profileId, profile.id)).get();
-  const upNext = db.select().from(recommendations).where(and(
-    eq(recommendations.householdId, session.user.id), eq(recommendations.profileId, profile.id),
-    inArray(recommendations.status, ["suggested", "purchased"]),
-  )).orderBy(desc(recommendations.createdAt)).all();
-  const joint = db.select().from(recommendations).where(and(
-    eq(recommendations.householdId, session.user.id), isNull(recommendations.profileId),
-    inArray(recommendations.status, ["suggested", "purchased"]),
-  )).orderBy(desc(recommendations.createdAt)).all();
+  const visibleRecommendations = listVisibleRecommendations(session.user.id);
+  const upNext = visibleRecommendations.filter((item) => item.profileId === profile.id);
+  const joint = visibleRecommendations.filter((item) => item.profileId === null);
   const recent = db.select({ note: tastingNotes, wine: wines }).from(tastingNotes)
     .innerJoin(wines, eq(tastingNotes.wineId, wines.id))
     .where(eq(tastingNotes.householdId, session.user.id)).orderBy(desc(tastingNotes.createdAt)).limit(5).all();

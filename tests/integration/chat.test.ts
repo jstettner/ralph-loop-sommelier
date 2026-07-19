@@ -331,4 +331,60 @@ describe("chat route and attributed tools", () => {
     const foreignConversation = await getConversation(new Request(`http://localhost:3000/api/conversations/${owner.conversationId}`, { headers: { cookie: outsider.cookie } }), { params: Promise.resolve({ id: owner.conversationId }) });
     expect(foreignConversation.status).toBe(404);
   });
+
+  it("AC-REC-8 prevents normalized duplicates across profile and joint recommendation sections", async () => {
+    const fixture = await makeFixture("recommendation-dedup");
+    const tools = createChatTools({
+      conversationId: fixture.conversationId,
+      householdId: fixture.householdId,
+      participantIds: fixture.profileIds,
+    });
+    const first = await tools.save_recommendation.execute?.({
+      for_profile_id: fixture.profileIds[0] as string,
+      wine_name: "  Château   Test  ",
+      producer: " Domaine   Example ",
+      reasoning: "A bright profile pick.",
+    }, { toolCallId: "first", messages: [] });
+    const duplicate = await tools.save_recommendation.execute?.({
+      for_profile_id: null,
+      wine_name: "château test",
+      producer: "domaine example",
+      reasoning: "The same wine offered for the table.",
+    }, { toolCallId: "duplicate", messages: [] });
+    expect(first).toMatchObject({ saved: true });
+    expect(duplicate).toMatchObject({ saved: false, duplicate: true, recommendation_id: (first as { recommendation_id: string }).recommendation_id });
+    let rows = db.select().from(recommendations).where(eq(recommendations.householdId, fixture.householdId)).all();
+    expect(rows).toHaveLength(1);
+
+    const firstId = rows[0]?.id ?? "";
+    const dismiss = await patchRecommendation(new Request(`http://localhost:3000/api/recommendations/${firstId}`, {
+      method: "PATCH", headers: { cookie: fixture.cookie, "content-type": "application/json" }, body: JSON.stringify({ status: "dismissed" }),
+    }), { params: Promise.resolve({ id: firstId }) });
+    expect(dismiss.status).toBe(200);
+    const replacement = await tools.save_recommendation.execute?.({
+      for_profile_id: null,
+      wine_name: "CHÂTEAU TEST",
+      producer: "DOMAINE EXAMPLE",
+      reasoning: "Eligible again after the prior recommendation left the visible sections.",
+    }, { toolCallId: "replacement", messages: [] });
+    expect(replacement).toMatchObject({ saved: true });
+
+    rows = db.select().from(recommendations).where(eq(recommendations.householdId, fixture.householdId)).all();
+    expect(rows).toHaveLength(2);
+    const reactivate = await patchRecommendation(new Request(`http://localhost:3000/api/recommendations/${firstId}`, {
+      method: "PATCH", headers: { cookie: fixture.cookie, "content-type": "application/json" }, body: JSON.stringify({ status: "purchased" }),
+    }), { params: Promise.resolve({ id: firstId }) });
+    expect(reactivate.status).toBe(409);
+
+    // Listing also protects the UI from legacy duplicate rows that bypassed the tool invariant.
+    db.insert(recommendations).values({
+      id: crypto.randomUUID(), householdId: fixture.householdId, profileId: fixture.profileIds[1],
+      wineName: " château    test ", producer: " domaine   example ", reasoning: "Legacy duplicate.",
+      status: "suggested", source: "dashboard",
+    }).run();
+    const response = await getRecommendations(new Request("http://localhost:3000/api/recommendations?target=all", { headers: { cookie: fixture.cookie } }));
+    const listed = (await response.json()) as { recommendations: Array<{ status: string }> };
+    expect(listed.recommendations.filter((item) => item.status === "suggested" || item.status === "purchased")).toHaveLength(1);
+    expect(listed.recommendations.filter((item) => item.status === "dismissed")).toHaveLength(1);
+  });
 });
