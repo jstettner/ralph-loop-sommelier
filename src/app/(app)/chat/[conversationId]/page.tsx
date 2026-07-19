@@ -5,6 +5,7 @@ import { ChatClient } from "@/components/chat-client";
 import { db } from "@/db/client";
 import { conversations, messages, profiles } from "@/db/schema";
 import { getHouseholdSession } from "@/server/session";
+import { recentRun } from "@/server/chat-runs";
 
 export default async function ConversationPage({ params, searchParams }: {
   params: Promise<{ conversationId: string }>;
@@ -20,5 +21,6 @@ export default async function ConversationPage({ params, searchParams }: {
   const participants = householdProfiles.filter((profile) => conversation.participantIds.includes(profile.id));
   const initialMessages = stored.map((message) => ({ id: message.id, role: message.role, parts: message.parts })) as unknown as UIMessage[];
   const { starter } = await searchParams;
-  return <ChatClient conversationId={conversation.id} initialMessages={initialMessages} participants={participants} model={conversation.model} starter={stored.length ? undefined : starter} />;
+  const run = recentRun(conversation.id, session.user.id);
+  return <ChatClient conversationId={conversation.id} initialMessages={initialMessages} participants={participants} model={conversation.model} title={conversation.title} initialRun={run ? { status: run.status, safeError: run.safeError } : null} starter={stored.length ? undefined : starter} />;
 }

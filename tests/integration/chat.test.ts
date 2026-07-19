@@ -4,15 +4,15 @@ import type { LanguageModelV2StreamPart } from "@ai-sdk/provider";
 import { MockLanguageModelV2, simulateReadableStream } from "ai/test";
 import { afterAll, describe, expect, it } from "vitest";
 import { POST as postChat } from "../../src/app/api/chat/route";
-import { POST as createConversation } from "../../src/app/api/conversations/route";
-import { GET as getConversation } from "../../src/app/api/conversations/[id]/route";
+import { GET as listConversations, POST as createConversation } from "../../src/app/api/conversations/route";
+import { DELETE as deleteConversation, GET as getConversation, PATCH as renameConversation } from "../../src/app/api/conversations/[id]/route";
 import { GET as listJournal } from "../../src/app/api/journal/route";
 import { DELETE as deleteJournalNote } from "../../src/app/api/journal/[id]/route";
 import { GET as getRecommendations } from "../../src/app/api/recommendations/route";
 import { PATCH as patchRecommendation } from "../../src/app/api/recommendations/[id]/route";
 import { POST as createProfile } from "../../src/app/api/profiles/route";
 import { db } from "../../src/db/client";
-import { conversations, messages, palateProfiles, recommendations, tastingNotes, user, wines } from "../../src/db/schema";
+import { chatRuns, conversations, messages, palateProfiles, recommendations, tastingNotes, user, wines } from "../../src/db/schema";
 import { auth } from "../../src/lib/auth";
 import { MOCK_SCRIPTS } from "../../src/lib/llm/mock";
 import { createChatTools } from "../../src/lib/llm/tools";
@@ -61,6 +61,15 @@ async function send(fixture: Fixture, text: string): Promise<string> {
   return response.text();
 }
 
+async function waitFor(check: () => boolean, timeout = 5_000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    if (check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("Timed out waiting for fixture state.");
+}
+
 function streamedText(stream: string): string {
   return stream.split("\n").flatMap((line) => {
     if (!line.startsWith("data: {") || line === "data: [DONE]") return [];
@@ -103,7 +112,8 @@ describe("chat route and attributed tools", () => {
 
   it("AC-LLM-4 executes every scripted mock tool call and follows each with assistant text", async () => {
     const fixture = await makeFixture("all-mock-triggers");
-    for (const [trigger, confirmation] of Object.entries(MOCK_SCRIPTS)) {
+    const toolTriggers = Object.entries(MOCK_SCRIPTS).filter(([trigger]) => trigger !== "MOCK:LONGTRACE" && trigger !== "MOCK:FAIL");
+    for (const [trigger, confirmation] of toolTriggers) {
       const stream = await send(fixture, trigger);
       expect(streamedText(stream)).toContain(confirmation);
       expect(stream).toContain("tool-");
@@ -111,6 +121,132 @@ describe("chat route and attributed tools", () => {
     expect(db.select().from(tastingNotes).where(eq(tastingNotes.householdId, fixture.householdId)).all().length).toBeGreaterThanOrEqual(3);
     expect(db.select().from(recommendations).where(eq(recommendations.householdId, fixture.householdId)).all()).toHaveLength(2);
   }, 30_000); // iterates every scripted trigger through the delayed two-step mock stream
+
+  it("AC-LLM-10 emits 80 delayed numbered reasoning lines without tools and fails after one safe partial delta", async () => {
+    const fixture = await makeFixture("longtrace-fail", ["Alex"]);
+    const long = await send(fixture, "MOCK:LONGTRACE");
+    const events = streamedParts(long);
+    expect(events.reasoning.match(/checking a safe wine-learning signal/g)).toHaveLength(80);
+    expect(events.reasoning).toContain("01 ·");
+    expect(events.reasoning).toContain("80 ·");
+    expect(events.text).toContain("The long reasoning summary is complete.");
+    expect(long).not.toContain("tool-input");
+    expect(long.toLowerCase()).not.toContain("chain of thought");
+
+    const failedResponse = await postChat(new Request("http://localhost:3000/api/chat", {
+      method: "POST", headers: { cookie: fixture.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ conversationId: fixture.conversationId, messages: [{ id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: "MOCK:FAIL" }] }] }),
+    }));
+    const failedReader = failedResponse.body?.getReader();
+    const decoder = new TextDecoder();
+    let failed = "";
+    try {
+      while (failedReader) {
+        const chunk = await failedReader.read();
+        if (chunk.done) break;
+        failed += decoder.decode(chunk.value, { stream: true });
+      }
+    } catch { /* the fixture intentionally terminates the HTTP stream */ }
+    expect(streamedText(failed)).toBe("I started checking that…");
+    expect(failed).not.toContain("tool-input");
+    expect(failed).not.toContain("RAW_PROVIDER_DIAGNOSTIC");
+    await waitFor(() => db.select().from(chatRuns).where(eq(chatRuns.conversationId, fixture.conversationId)).orderBy(chatRuns.startedAt).all().at(-1)?.status === "failed");
+    const run = db.select().from(chatRuns).where(eq(chatRuns.conversationId, fixture.conversationId)).orderBy(chatRuns.startedAt).all().at(-1);
+    expect(run).toMatchObject({ status: "failed", safeError: "The response could not be generated. Please try again." });
+  }, 15_000);
+
+  it("AC-DATA-8 AC-CHAT-17 AC-CHAT-18 drains a canceled client stream, checkpoints, rejoins, and invokes tools once", async () => {
+    const fixture = await makeFixture("durable-disconnect", ["Alex"]);
+    const userMessageId = crypto.randomUUID();
+    const body = JSON.stringify({ conversationId: fixture.conversationId, messages: [{ id: userMessageId, role: "user", parts: [{ type: "text", text: "MOCK:LIVE" }] }] });
+    const response = await postChat(new Request("http://localhost:3000/api/chat", { method: "POST", headers: { cookie: fixture.cookie, "content-type": "application/json" }, body }));
+    expect(response.status).toBe(200);
+    const reader = response.body?.getReader();
+    await reader?.read();
+    await reader?.cancel("simulate navigation");
+    const active = db.select().from(chatRuns).where(eq(chatRuns.userMessageId, userMessageId)).get();
+    expect(active).toMatchObject({ status: "running", householdId: fixture.householdId });
+
+    const deleteWhileRunning = await deleteConversation(new Request(`http://localhost:3000/api/conversations/${fixture.conversationId}`, { method: "DELETE", headers: { cookie: fixture.cookie } }), { params: Promise.resolve({ id: fixture.conversationId }) });
+    expect(deleteWhileRunning.status).toBe(409);
+    const competing = await postChat(new Request("http://localhost:3000/api/chat", {
+      method: "POST", headers: { cookie: fixture.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ conversationId: fixture.conversationId, messages: [{ id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: "duplicate" }] }] }),
+    }));
+    expect(competing.status).toBe(409);
+
+    await waitFor(() => db.select().from(chatRuns).where(eq(chatRuns.userMessageId, userMessageId)).get()?.status === "completed");
+    expect(db.select().from(tastingNotes).where(and(eq(tastingNotes.conversationId, fixture.conversationId), eq(tastingNotes.profileId, fixture.profileIds[0] as string))).all()).toHaveLength(1);
+    const detail = await getConversation(new Request(`http://localhost:3000/api/conversations/${fixture.conversationId}`, { headers: { cookie: fixture.cookie } }), { params: Promise.resolve({ id: fixture.conversationId }) });
+    const payload = await detail.json() as { messages: Array<{ role: string; parts: Array<{ type: string }> }>; run: { status: string } };
+    expect(payload.run.status).toBe("completed");
+    expect(payload.messages.filter((message) => message.role === "user")).toHaveLength(1);
+    expect(payload.messages.filter((message) => message.role === "assistant")).toHaveLength(1);
+    expect(payload.messages.flatMap((message) => message.parts).some((part) => part.type.startsWith("tool-"))).toBe(true);
+
+    const retry = await postChat(new Request("http://localhost:3000/api/chat", { method: "POST", headers: { cookie: fixture.cookie, "content-type": "application/json" }, body }));
+    expect(retry.status).toBe(200);
+    expect(db.select().from(chatRuns).where(eq(chatRuns.userMessageId, userMessageId)).all()).toHaveLength(1);
+    expect(db.select().from(tastingNotes).where(eq(tastingNotes.conversationId, fixture.conversationId)).all()).toHaveLength(1);
+  }, 15_000);
+
+  it("AC-CHAT-11 AC-CHAT-13 AC-CHAT-14 returns stable scoped title-search pages and renames without changing activity", async () => {
+    const fixture = await makeFixture("history-contract", ["Alex"]);
+    const outsider = await makeFixture("history-outsider", ["Morgan"]);
+    const base = Date.now() - 100_000;
+    for (let index = 0; index < 54; index += 1) db.insert(conversations).values({
+      id: crypto.randomUUID(), householdId: fixture.householdId, participantIds: fixture.profileIds,
+      title: index % 10 === 0 ? `Burgundy lesson ${index}` : `Chat ${index}`, model: "mock:mock-model", createdAt: new Date(base + index), updatedAt: new Date(base + index),
+    }).run();
+    const first = await listConversations(new Request("http://localhost:3000/api/conversations?limit=25", { headers: { cookie: fixture.cookie } }));
+    const firstPayload = await first.json() as { conversations: Array<{ id: string; title: string; preview: string }>; nextCursor: string };
+    expect(firstPayload.conversations).toHaveLength(25);
+    expect(firstPayload.conversations[0]?.preview).toBe("No messages yet");
+    const second = await listConversations(new Request(`http://localhost:3000/api/conversations?limit=25&cursor=${encodeURIComponent(firstPayload.nextCursor)}`, { headers: { cookie: fixture.cookie } }));
+    const secondPayload = await second.json() as { conversations: Array<{ id: string }> };
+    expect(secondPayload.conversations).toHaveLength(25);
+    expect(new Set([...firstPayload.conversations, ...secondPayload.conversations].map((row) => row.id)).size).toBe(50);
+    expect((await listConversations(new Request("http://localhost:3000/api/conversations?limit=51", { headers: { cookie: fixture.cookie } }))).status).toBe(400);
+    expect((await listConversations(new Request("http://localhost:3000/api/conversations?cursor=bad", { headers: { cookie: fixture.cookie } }))).status).toBe(400);
+    const search = await listConversations(new Request("http://localhost:3000/api/conversations?q=BURGUNDY", { headers: { cookie: fixture.cookie } }));
+    const searchRows = (await search.json() as { conversations: Array<{ title: string }> }).conversations;
+    expect(searchRows).toHaveLength(6);
+    expect(searchRows.every((row) => row.title.includes("Burgundy"))).toBe(true);
+    const outsiderRows = (await (await listConversations(new Request("http://localhost:3000/api/conversations", { headers: { cookie: outsider.cookie } }))).json() as { conversations: Array<{ id: string }> }).conversations;
+    expect(outsiderRows.some((row) => firstPayload.conversations.some((ours) => ours.id === row.id))).toBe(false);
+
+    const row = db.select().from(conversations).where(eq(conversations.id, firstPayload.conversations[0]?.id ?? "")).get();
+    const renamed = await renameConversation(new Request(`http://localhost:3000/api/conversations/${row?.id}`, { method: "PATCH", headers: { cookie: fixture.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "  Cellar questions  " }) }), { params: Promise.resolve({ id: row?.id ?? "" }) });
+    expect(renamed.status).toBe(200);
+    expect(db.select().from(conversations).where(eq(conversations.id, row?.id ?? "")).get()).toMatchObject({ title: "Cellar questions", updatedAt: row?.updatedAt });
+    expect((await renameConversation(new Request(`http://localhost:3000/api/conversations/${row?.id}`, { method: "PATCH", headers: { cookie: fixture.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "" }) }), { params: Promise.resolve({ id: row?.id ?? "" }) })).status).toBe(400);
+    expect((await renameConversation(new Request(`http://localhost:3000/api/conversations/${row?.id}`, { method: "PATCH", headers: { cookie: outsider.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "stolen" }) }), { params: Promise.resolve({ id: row?.id ?? "" }) })).status).toBe(404);
+  });
+
+  it("AC-DATA-7 AC-CHAT-15 AC-CHAT-19 preserves learned data on deletion and recovers stale runs safely", async () => {
+    const fixture = await makeFixture("delete-stale", ["Alex"]);
+    await send(fixture, "MOCK:TASTING");
+    await waitFor(() => db.select().from(chatRuns).where(eq(chatRuns.conversationId, fixture.conversationId)).get()?.status === "completed");
+    const noteBefore = db.select().from(tastingNotes).where(eq(tastingNotes.conversationId, fixture.conversationId)).get();
+    const wineBefore = db.select().from(wines).where(eq(wines.id, noteBefore?.wineId ?? "")).get();
+    const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();
+    db.insert(messages).values([
+      { id: userId, conversationId: fixture.conversationId, role: "user", parts: [{ type: "text", text: "stale" }] },
+      { id: assistantId, conversationId: fixture.conversationId, role: "assistant", parts: [] },
+    ]).run();
+    db.insert(chatRuns).values({ id: crypto.randomUUID(), householdId: fixture.householdId, conversationId: fixture.conversationId, userMessageId: userId, assistantMessageId: assistantId, status: "running", heartbeatAt: new Date(Date.now() - 61_000) }).run();
+    const detail = await getConversation(new Request(`http://localhost:3000/api/conversations/${fixture.conversationId}`, { headers: { cookie: fixture.cookie } }), { params: Promise.resolve({ id: fixture.conversationId }) });
+    const recent = (await detail.json() as { run: { status: string; safeError: string } }).run;
+    expect(recent).toMatchObject({ status: "interrupted", safeError: "The response was interrupted. You can send another message." });
+    expect(JSON.stringify(recent)).not.toContain("RAW_PROVIDER_DIAGNOSTIC");
+    const deleted = await deleteConversation(new Request(`http://localhost:3000/api/conversations/${fixture.conversationId}`, { method: "DELETE", headers: { cookie: fixture.cookie } }), { params: Promise.resolve({ id: fixture.conversationId }) });
+    expect(deleted.status).toBe(204);
+    expect(db.select().from(conversations).where(eq(conversations.id, fixture.conversationId)).get()).toBeUndefined();
+    expect(db.select().from(messages).where(eq(messages.conversationId, fixture.conversationId)).all()).toHaveLength(0);
+    expect(db.select().from(chatRuns).where(eq(chatRuns.conversationId, fixture.conversationId)).all()).toHaveLength(0);
+    expect(db.select().from(tastingNotes).where(eq(tastingNotes.id, noteBefore?.id ?? "")).get()?.conversationId).toBeNull();
+    expect(db.select().from(wines).where(eq(wines.id, wineBefore?.id ?? "")).get()).toEqual(wineBefore);
+  }, 10_000);
 
   it("AC-LLM-8 streams and executes application tools against a representative Gemma 4 model", async () => {
     const fixture = await makeFixture("gemma-contract", ["Alex"]);

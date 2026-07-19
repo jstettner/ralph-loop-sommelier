@@ -10,6 +10,8 @@ export const MOCK_SCRIPTS = {
   "MOCK:SEARCH": "Astor Wines appears in the availability results for Mendoza Malbec.",
   "MOCK:REASON": "I recorded that tasting after thinking through your acidity history.",
   "MOCK:LIVE": "Logged it — that Malbec is in your journal now.",
+  "MOCK:LONGTRACE": "The long reasoning summary is complete.",
+  "MOCK:FAIL": "The response could not be generated. Please try again.",
 } as const;
 
 type MockTrigger = keyof typeof MOCK_SCRIPTS;
@@ -174,6 +176,25 @@ async function stream(options: LanguageModelV2CallOptions) {
   const reasoning = trigger ? REASONING_SUMMARIES[trigger] : undefined;
   const preface = trigger ? PREFACES[trigger] : undefined;
   const chunks: LanguageModelV2StreamPart[] = [{ type: "stream-start", warnings: [] }];
+  if (trigger === "MOCK:FAIL") {
+    let step = 0;
+    return { stream: new ReadableStream<LanguageModelV2StreamPart>({
+      async pull(controller) {
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        if (step === 0) controller.enqueue({ type: "stream-start", warnings: [] });
+        else if (step === 1) controller.enqueue({ type: "text-start", id: "mock-fail" });
+        else if (step === 2) controller.enqueue({ type: "text-delta", id: "mock-fail", delta: "I started checking that…" });
+        else controller.error(new Error("RAW_PROVIDER_DIAGNOSTIC fixture failure"));
+        step += 1;
+      },
+    }) };
+  }
+  if (trigger === "MOCK:LONGTRACE") {
+    chunks.push(...reasoningChunks("mock-long-trace", Array.from({ length: 80 }, (_, index) => `${String(index + 1).padStart(2, "0")} · checking a safe wine-learning signal\n`)));
+    chunks.push(...textChunks(MOCK_SCRIPTS[trigger]));
+    chunks.push({ type: "finish", finishReason: "stop", usage: { inputTokens: 1, outputTokens: 80, totalTokens: 81 } });
+    return { stream: simulateReadableStream({ chunks, chunkDelayInMs: 18 }) };
+  }
   if (trigger && calls.length && !hasToolResult) {
     // First step: reasoning (if any) → optional preface text → tool calls, deferring the final
     // answer until the tool result returns.

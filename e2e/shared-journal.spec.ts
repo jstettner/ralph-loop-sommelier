@@ -26,11 +26,11 @@ test("AC-CHAT-7 AC-CHAT-8 AC-JRNL-5 AC-REC-5 AC-UI-7 shared tasting groups two a
   await page.getByRole("button", { name: "START CHAT" }).click();
   await page.getByRole("textbox", { name: "Message" }).fill("MOCK:SHARED");
   await page.getByRole("button", { name: "Send message" }).click();
-  await expect(page.getByText(/separate notes for both tasters/)).toBeVisible();
+  await expect(page.getByTestId("chat-transcript").getByText(/separate notes for both tasters/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
   await page.getByRole("textbox", { name: "Message" }).fill("MOCK:JOINTREC");
   await page.getByRole("button", { name: "Send message" }).click();
-  await expect(page.getByText(/saved a bottle for both of you/)).toBeVisible();
+  await expect(page.getByTestId("chat-transcript").getByText(/saved a bottle for both of you/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
 
   await page.goto("/dashboard");

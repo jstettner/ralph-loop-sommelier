@@ -7,25 +7,23 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Now
 
-- [ ] Chat history, navigation-safe continuation, and neural-trace auto-scroll are
-  specified; implementation has not started (AC-DATA-7–8, AC-LLM-10,
-  AC-CHAT-11–20, AC-UI-13–14).
+- [x] Chat history, navigation-safe continuation, neural-trace auto-scroll, and
+  composer shortcuts are implemented with all 97 ACs covered.
 
 ## Next
 
-- [ ] Implement the chat-history data/API contract and migration (AC-DATA-7,
-  AC-CHAT-11, AC-CHAT-13–15).
-- [ ] Implement durable chat-run lifecycle, checkpoint/rejoin, idempotency, and stale
-  recovery (AC-DATA-8, AC-CHAT-17–19).
-- [ ] Implement responsive desktop/mobile history UI and interaction coverage
-  (AC-CHAT-12–16, AC-UI-13).
-- [ ] Implement bounded neural-trace auto-scroll and long-trace mock coverage
-  (AC-LLM-10, AC-UI-14).
-- [ ] Implement composer Meta/Control+Enter submission with multiline, IME, repeat,
-  accessibility, and busy-state coverage (AC-CHAT-20).
-- [ ] Run `./verify.sh --done` and restore complete AC coverage.
+- [ ] Run `./verify.sh --done`, commit the completed increment, and push `main`.
 
 ## Done this session
+
+- [x] Chat history + durable continuation increment: stable household title-search
+  pagination, safe previews, rename/delete with learned-data preservation, responsive
+  desktop/mobile history, atomic chat-run ownership, split/drained provider streams,
+  250ms checkpoints, heartbeat/stale recovery, idempotent rejoin, safe failure states,
+  `MOCK:LONGTRACE`/`MOCK:FAIL`, 64-line trace auto-follow, and Meta/Control+Enter.
+  Typecheck, lint, guard (97/97), build, 37 unit tests, 25 integration tests, and 16
+  desktop/mobile Playwright tests are green (AC-DATA-7–8, AC-LLM-10,
+  AC-CHAT-11–20, AC-UI-13–14).
 
 - [x] Neural-trace final-output handoff: the final assistant text waits for the existing
   750ms decay to unmount, preventing two animated layers from competing; the trace keeps
@@ -106,6 +104,14 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
   chat overlay/reasoning; dashboard REC/JOINTREC drive overlay via tool activity (no-reasoning fallback).
 
 ## Discoveries
+
+- 2026-07-19: AI SDK UI message streams can be made navigation-safe in the standalone
+  process by teeing the UI chunk stream: the response branch remains normal SSE while a
+  server-owned `readUIMessageStream` branch drains and checkpoints it. Canceling the
+  response reader does not cancel the persistence branch or duplicate tool execution.
+- 2026-07-19: Next client router cache can retain the just-created empty conversation
+  payload when returning from mobile history. Conversation history rows intentionally
+  use canonical document navigation so resuming always reloads the SQLite transcript.
 
 - 2026-07-19: Chat send shortcut is Meta+Enter on macOS and Control+Enter elsewhere;
   plain Enter remains multiline. It shares the SEND-button path and explicitly ignores

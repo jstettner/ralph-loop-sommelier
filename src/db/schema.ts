@@ -101,7 +101,10 @@ export const conversations = sqliteTable("conversations", {
   title: text("title").notNull().default("New tasting session"),
   model: text("model").notNull(),
   ...timestamps,
-}, (table) => [index("conversations_household_idx").on(table.householdId)]);
+}, (table) => [
+  index("conversations_household_idx").on(table.householdId),
+  index("conversations_history_idx").on(table.householdId, table.updatedAt, table.id),
+]);
 
 export interface MessagePart {
   type: string;
@@ -115,6 +118,29 @@ export const messages = sqliteTable("messages", {
   parts: text("parts", { mode: "json" }).notNull().$type<MessagePart[]>(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
 }, (table) => [index("messages_conversation_idx").on(table.conversationId)]);
+
+export const chatRuns = sqliteTable("chat_runs", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  userMessageId: text("user_message_id").notNull().unique().references(() => messages.id, { onDelete: "cascade" }),
+  assistantMessageId: text("assistant_message_id").notNull().unique().references(() => messages.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["running", "completed", "failed", "interrupted"] }).notNull(),
+  safeError: text("safe_error"),
+  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  heartbeatAt: integer("heartbeat_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+  finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+}, (table) => [
+  index("chat_runs_household_idx").on(table.householdId),
+  index("chat_runs_conversation_idx").on(table.conversationId, table.updatedAt),
+  uniqueIndex("chat_runs_one_running_per_conversation").on(table.conversationId).where(sql`${table.status} = 'running'`),
+  check("chat_runs_valid_shape", sql`(
+    (${table.status} = 'running' and ${table.finishedAt} is null and ${table.safeError} is null) or
+    (${table.status} = 'completed' and ${table.finishedAt} is not null and ${table.safeError} is null) or
+    (${table.status} in ('failed', 'interrupted') and ${table.finishedAt} is not null and length(trim(${table.safeError})) > 0)
+  )`),
+]);
 
 export interface TastingPalate {
   sweetness: number | null;
