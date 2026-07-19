@@ -49,6 +49,7 @@ tests/
   integration/          # Vitest — API routes + real (ephemeral) SQLite
   fixtures/             # search fixtures, mock-LLM scripts, test seed data
 e2e/                    # Playwright specs
+evals/                  # Opt-in paid real-model quality checks; never part of verify.sh
 scripts/                # harness helpers — guard.sh is the operator's, do not modify
 specs/                  # these files — source of truth, operator-owned
 ```
