@@ -1,45 +1,68 @@
 # 07 — Recommendations
 
-"What should I try next?" — persisted suggestions with lifecycle, surfaced on the
-dashboard and generated both in chat and on demand.
+"What should I try next?" — persisted suggestions with lifecycle, per-taster **and
+joint** ("bottles you'll both like"), surfaced on the dashboard and generated both in
+chat and on demand.
+
+## Targeting
+
+A recommendation targets either one profile (`profile_id` set) or the whole household
+(`profile_id` null — a **joint** recommendation). Joint reasoning must explicitly
+reference the overlap between the household's palates ("you both run low-tannin,
+high-acid — try a cru Beaujolais").
 
 ## Sources
 
-1. **Chat**: the agent calls `save_recommendation` whenever it recommends a concrete
-   next bottle (specs/04).
-2. **Dashboard**: a "Suggest my next bottle" button on the dashboard calls
-   `POST /api/recommendations/generate`, which runs a single non-chat `generateText`
-   call (same registry, same memory assembly as specs/04) with the
-   `save_recommendation` tool forced/available, producing 1–3 persisted
-   recommendations. Under `MOCK_LLM=1` this yields the mock's fixed recommendation.
+1. **Chat**: the agent calls `save_recommendation` (specs/04) — targeted at a
+   participant, or joint when recommending for everyone present.
+2. **Dashboard**: two generate buttons calling `POST /api/recommendations/generate`:
+   - `mode: "profile"` — "Suggest my next bottle": single non-chat `generateText`
+     call (same registry + memory assembly as specs/04, active profile's context)
+     with `save_recommendation` available; persists 1–3 recommendations for the
+     active profile.
+   - `mode: "joint"` — "Suggest a bottle for all of us" (shown only when the household
+     has ≥2 profiles): same call with **every** profile's palate in context,
+     instructed to find the intersection; persists 1–3 joint recommendations.
+   Under `MOCK_LLM=1` these yield the mock's fixed recommendation(s).
 
 ## Lifecycle
 
 `suggested → purchased → tasted`, or `→ dismissed` from any state. Status buttons on
-each card. "Tasted" links the user toward chat to record the tasting.
+each card. "Tasted" links toward chat to record the tasting.
 
 ## Dashboard (`/dashboard`)
 
 The post-login landing page. Sections:
-- **Up next**: recommendations with status `suggested` or `purchased` (card: wine
-  name/style/grape/region, price band, reasoning, status controls).
-- **Recent tastings**: last 5 journal entries (linking into `/journal`).
-- **Palate snapshot**: mini view of profile dimensions, linking to `/profile`.
-- Empty states for all three that route the user to the right action.
+- **Up next (for {active profile})**: `suggested`/`purchased` recommendations targeted
+  at the active profile (card: wine name/style/grape/region, price band, reasoning,
+  status controls).
+- **For the table** (only when household has ≥2 profiles): joint recommendations,
+  same card + controls, badged with all profiles' colors.
+- **Recent tastings**: last 5 household journal entries with author badges (linking
+  into `/journal`).
+- **Palate snapshot**: mini view of the active profile's dimensions, linking to
+  `/profile`.
+- Empty states for all sections that route the user to the right action.
 
 ## API
 
-- `GET /api/recommendations` (list, session-scoped)
-- `POST /api/recommendations/generate`
+- `GET /api/recommendations` (list, household-scoped; filterable by target: active
+  profile / joint / all)
+- `POST /api/recommendations/generate` (`mode: "profile" | "joint"`)
 - `PATCH /api/recommendations/[id]` (status transitions only; validate enum)
 
 ## Acceptance criteria
 
-- **AC-REC-1**: A `MOCK:REC` chat message persists a recommendation that then appears
-  on the dashboard "Up next" section (e2e).
-- **AC-REC-2**: "Suggest my next bottle" creates ≥1 persisted recommendation under the
-  mock and renders it without reload (e2e).
-- **AC-REC-3**: Status transitions persist and dismissed recommendations leave "Up
-  next" (integration + e2e).
-- **AC-REC-4**: Recommendation reads/writes are session-scoped; foreign ids → 404
+- **AC-REC-1**: A `MOCK:REC` chat message persists a recommendation targeted at the
+  first participant that appears in the dashboard "Up next" section (e2e).
+- **AC-REC-2**: "Suggest my next bottle" creates ≥1 persisted recommendation for the
+  active profile under the mock and renders it without reload (e2e).
+- **AC-REC-3**: Status transitions persist and dismissed recommendations leave the
+  dashboard sections (integration + e2e).
+- **AC-REC-4**: Recommendation reads/writes are household-scoped; foreign ids → 404
   (integration).
+- **AC-REC-5**: A `MOCK:JOINTREC` chat message (or a `mode: "joint"` generate) persists
+  a `profile_id`-null recommendation that appears in "For the table" and not in
+  "Up next" (e2e).
+- **AC-REC-6**: The joint generate button and "For the table" section are absent for
+  single-profile households (e2e or integration).

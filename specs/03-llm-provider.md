@@ -30,9 +30,11 @@ When `MOCK_LLM=1`:
 
 | Trigger substring | Mock behavior |
 |---|---|
-| `MOCK:TASTING` | Calls `record_tasting_note` with fixed args (a 2022 Malbec, verdict "liked", nose ["blackberry","violet"], rating 4), then streams a short confirmation text. |
-| `MOCK:PROFILE` | Calls `update_palate_profile` with fixed args (tannin 4, notes mention "bold reds"), then streams confirmation. |
-| `MOCK:REC` | Calls `save_recommendation` with fixed args (a Mendoza Malbec, price_band 15_30, source chat), then streams confirmation. |
+| `MOCK:TASTING` | Calls `record_tasting_note` for the **first participant** with fixed args (a 2022 Malbec, verdict "liked", nose ["blackberry","violet"], rating 4), then streams a short confirmation text. |
+| `MOCK:SHARED` | Calls `record_tasting_note` **twice against the same wine** — once per each of the conversation's first two participants, with different fixed args (participant 1: rating 4, verdict "liked"; participant 2: rating 2, verdict "disliked", nose ["green pepper"]) — then streams a confirmation naming both tasters. Requires ≥2 participants; with 1 it behaves like `MOCK:TASTING`. |
+| `MOCK:PROFILE` | Calls `update_palate_profile` for the first participant with fixed args (tannin 4, notes mention "bold reds"), then streams confirmation. |
+| `MOCK:REC` | Calls `save_recommendation` with fixed args (a Mendoza Malbec, price_band 15_30, source chat, targeted at the first participant), then streams confirmation. |
+| `MOCK:JOINTREC` | Calls `save_recommendation` with fixed args for a **joint** recommendation (profile_id null — "for both of you", reasoning mentions both palates), then streams confirmation. |
 | `MOCK:SEARCH` | Calls `search_wine_availability` with a fixed query, then streams a text that includes the fixture result's store name. |
 | anything else | Streams `MOCK RESPONSE: ` + the user text. No tool calls. |
 

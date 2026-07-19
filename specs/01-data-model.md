@@ -4,59 +4,89 @@ One canonical Drizzle schema in `src/db/schema.ts`. SQLite. All IDs are text (na
 UUID — pick one and use it everywhere). All timestamps are integer epoch-ms with Drizzle
 `integer({ mode: 'timestamp_ms' })`.
 
+## Tenancy model (read this first)
+
+- The **Better Auth `user`** is the **household** — the login credential a couple (or
+  individual) shares. In app code, refer to it as the household.
+- A household contains 1–4 **profiles** (Netflix-style: "who's tasting?"). Profiles own
+  palates, tasting notes, and ratings. Two profiles tasting the same bottle in the same
+  conversation is the app's signature flow.
+- **Scoping rule**: every household-resident table carries `household_id`
+  (= Better Auth user id) and is ALWAYS queried scoped to the session's household.
+  Attributed tables additionally carry `profile_id`, which must reference a profile of
+  that same household (validate on every write).
+- **Visibility**: within a household, all profiles see all data (shared visibility);
+  writes are attributed to their author profile. Across households, nothing leaks —
+  ever.
+
 ## Tables
 
 ### Better Auth tables
-`user`, `session`, `account`, `verification` — exactly as Better Auth's Drizzle adapter
-requires. Do not hand-modify their shape beyond what Better Auth documents.
+`user` (the household), `session`, `account`, `verification` — exactly as Better Auth's
+Drizzle adapter requires.
 
-### `palate_profiles` — one row per user
+### `profiles`
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | |
-| user_id | text, unique, FK → user.id | one profile per user |
+| household_id | text FK → user.id | |
+| name | text, required | display name, unique within household |
+| color | text enum: cyan, magenta, amber, green | profile accent (specs/10); auto-assigned first free |
+| created_at | timestamp | |
+
+Max 4 profiles per household (enforced in the API).
+
+### `palate_profiles` — one row per profile
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | |
+| profile_id | text, unique, FK → profiles.id | |
 | quiz_answers | json | raw onboarding quiz answers (specs/06) |
 | sweetness, acidity, tannin, body, oak | integer 1–5, nullable | preference dimensions; null = unknown |
-| adventurousness | integer 1–5, nullable | willingness to try weird stuff |
+| adventurousness | integer 1–5, nullable | |
 | notes | text | freeform agent-maintained palate observations |
 | updated_at | timestamp | |
 
-### `wines`
+### `wines` (global, deduped across households)
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | |
-| name | text, required | e.g. "Catena Malbec" |
+| name | text, required | |
 | producer | text, nullable | |
 | vintage | integer, nullable | |
-| grapes | json string[] | e.g. ["Malbec"] |
-| region | text, nullable | |
-| country | text, nullable | |
+| grapes | json string[] | |
+| region, country | text, nullable | |
 | style | text enum: red, white, rose, sparkling, dessert, fortified, orange | |
 | price_band | text enum: under_15, 15_30, 30_60, over_60 | nullable |
 | created_at | timestamp | |
 
-### `tasting_notes`
+### `tasting_notes` — attributed to a profile
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | |
-| user_id | text FK → user.id | |
+| household_id | text FK → user.id | |
+| profile_id | text FK → profiles.id | the taster |
 | wine_id | text FK → wines.id | |
 | appearance | text, nullable | |
-| nose | json string[] | aroma descriptors |
+| nose | json string[] | |
 | palate | json | `{ sweetness, acidity, tannin, alcohol, body: 1–5 nullable each, flavors: string[] }` |
 | finish | text, nullable | |
 | rating | integer 1–5, nullable | |
 | verdict | text enum: liked, mixed, disliked | required |
-| freeform | text, nullable | user's own words |
-| conversation_id | text FK → conversations.id, nullable | which chat produced it |
+| freeform | text, nullable | the taster's own words |
+| conversation_id | text FK → conversations.id, nullable | |
 | created_at | timestamp | |
+
+A shared tasting produces **one row per participating profile** for the same wine_id +
+conversation_id.
 
 ### `conversations`
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | |
-| user_id | text FK → user.id | |
-| title | text | default "New tasting session" until set |
+| household_id | text FK → user.id | |
+| participant_ids | json string[] | profile ids present in this session; ≥1, all from this household |
+| title | text | default "New tasting session" |
 | model | text | `provider:model-id` used |
 | created_at, updated_at | timestamp | |
 
@@ -65,43 +95,44 @@ requires. Do not hand-modify their shape beyond what Better Auth documents.
 |---|---|---|
 | id | text PK | |
 | conversation_id | text FK → conversations.id | |
-| role | text enum: user, assistant | |
-| parts | json | AI SDK UIMessage parts (text + tool calls/results), stored verbatim so history round-trips |
+| role | text enum: user, assistant | user turns are the shared device; speaker attribution is conversational, not structural |
+| parts | json | AI SDK UIMessage parts stored verbatim |
 | created_at | timestamp | |
 
 ### `recommendations`
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | |
-| user_id | text FK → user.id | |
-| wine_name | text | may be a style description ("Marlborough Sauvignon Blanc") or a specific bottle |
+| household_id | text FK → user.id | |
+| profile_id | text FK → profiles.id, **nullable** | null = joint recommendation for the household ("for both of you") |
+| wine_name | text | style description or specific bottle |
 | producer, grape, region | text, nullable | |
-| style | text enum (same as wines.style), nullable | |
-| price_band | text enum (same as wines.price_band), nullable | |
-| reasoning | text | why, tied to the user's palate profile |
+| style | text enum (wines.style), nullable | |
+| price_band | text enum (wines.price_band), nullable | |
+| reasoning | text | tied to the target palate(s); joint recs must reference the overlap |
 | status | text enum: suggested, purchased, tasted, dismissed | default suggested |
 | source | text enum: chat, dashboard | |
 | created_at | timestamp | |
 
-### `grapes` (curriculum — specs/09)
+### `grapes` (curriculum — specs/09; global, unchanged)
 | Column | Type | Notes |
 |---|---|---|
 | id | text PK | |
-| slug | text unique | e.g. "cabernet-sauvignon" |
+| slug | text unique | |
 | name | text | |
 | color | text enum: red, white | |
-| aka | json string[] | synonyms |
-| profile | text | what it tastes like, body/acid/tannin character |
+| aka | json string[] | |
+| profile | text | |
 | classic_regions | json string[] | |
-| what_to_taste_for | text | tasting guidance for a learner |
-| benchmark_styles | json string[] | e.g. ["Napa Cabernet ($20–40)", "Left Bank Bordeaux"] |
-| order_index | integer | curriculum ordering |
+| what_to_taste_for | text | |
+| benchmark_styles | json string[] | |
+| order_index | integer | |
 
 ## Rules
 
-- Every user-owned table (`palate_profiles`, `tasting_notes`, `conversations`,
-  `messages` via conversation, `recommendations`) is **always** queried scoped to the
-  session user. No query path may return another user's rows.
+- Every read of a household-resident table filters by the session household. Every
+  write validates that any `profile_id` (including each entry of `participant_ids`)
+  belongs to the session household.
 - Migrations are generated with drizzle-kit and committed. Never edit the DB by hand.
 
 ## Acceptance criteria
@@ -110,6 +141,10 @@ requires. Do not hand-modify their shape beyond what Better Auth documents.
 - **AC-DATA-2**: `db:seed` is idempotent — running it twice yields the same grape count.
 - **AC-DATA-3**: Inserting and reading back a tasting note round-trips all JSON fields
   (nose array, palate object) without loss.
-- **AC-DATA-4**: A query helper for each user-owned table requires a userId argument;
-  integration tests prove user B cannot read user A's tasting notes, conversations,
-  recommendations, or profile through any API route.
+- **AC-DATA-4**: Household isolation — integration tests prove household B cannot read
+  or write household A's profiles, tasting notes, conversations, or recommendations
+  through any API route.
+- **AC-DATA-5**: Attribution integrity — writes referencing a `profile_id` (or
+  `participant_ids` entry) from a different household are rejected (integration).
+- **AC-DATA-6**: Two tasting notes from different profiles against the same wine and
+  conversation coexist and are independently retrievable (integration).
