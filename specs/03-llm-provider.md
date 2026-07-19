@@ -90,6 +90,10 @@ When `MOCK_LLM=1`:
 | `MOCK:REC` | Calls `save_recommendation` for the first participant with the first candidate absent from `CURRENT VISIBLE RECOMMENDATIONS` (deterministic order starts Mendoza Malbec, then Etna Rosso), then streams confirmation naming the selected wine. |
 | `MOCK:JOINTREC` | Calls `save_recommendation` for a **joint** recommendation (profile_id null — "for both of you") with the first absent joint candidate (deterministic order starts Cru Beaujolais, then Rioja Reserva), then streams confirmation naming the selected wine. |
 | `MOCK:SEARCH` | Calls `search_wine_availability` with a fixed query, then streams a text that includes the fixture result's store name. |
+| `MOCK:LIVE` | Streams a short pre-tool text prefix and a deliberately slow `record_tasting_note` call for the first participant, then confirmation text, so navigation and running-tool state are observable. |
+| `MOCK:REASON` | Streams delayed reasoning summary → `record_tasting_note` → reasoning summary → final answer for deterministic neural-trace coverage. |
+| `MOCK:LONGTRACE` | Streams at least 80 numbered, delayed provider-visible reasoning-summary lines (enough to overflow desktop and mobile trace viewports), then a final short answer; it makes no tool call. |
+| `MOCK:FAIL` | Streams one short partial assistant text delta, then throws a delayed fixture error containing the internal sentinel `RAW_PROVIDER_DIAGNOSTIC`; no final assistant text or tool call. |
 | anything else | Streams `MOCK RESPONSE: ` + the user text. No tool calls. |
 
 - After any tool result returns, the mock streams a final text turn (so the chat UI
@@ -170,8 +174,8 @@ prints the model id, selected wines, and token usage so quality and cost are obs
   it to a 400 (integration).
 - **AC-LLM-3**: With `MOCK_LLM=1`, the registry exposes only the mock and never
   constructs a real provider (unit).
-- **AC-LLM-4**: Each mock trigger produces its scripted tool call followed by
-  assistant text (integration, via the chat route).
+- **AC-LLM-4**: Each tool-calling mock trigger produces its scripted tool call followed
+  by assistant text (integration, via the chat route).
 - **AC-LLM-5**: The conversation persists its selected model and the selector shows
   the available list (e2e sees the mock model listed).
 - **AC-LLM-6**: Request-assembly tests prove that Anthropic chat and dashboard
@@ -192,3 +196,7 @@ prints the model id, selected wines, and token usage so quality and cost are obs
   declared Anthropic/OpenAI/Google models, is absent from mock and OpenAI-compatible
   models, respects `NATIVE_WEB_SEARCH=0`, and never causes application function tools
   to disappear when a provider restricts tool combinations (unit).
+- **AC-LLM-10**: `MOCK:LONGTRACE` deterministically emits at least 80 numbered delayed
+  reasoning-summary lines followed by final answer text, while `MOCK:FAIL` emits its
+  partial delta then fixture error; neither makes a tool call or labels content as
+  hidden chain of thought (integration).

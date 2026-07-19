@@ -108,6 +108,33 @@ Deleting a conversation cascades to its messages. `tasting_notes.conversation_id
 uses `ON DELETE SET NULL`: deleting a transcript must not delete a tasting note or its
 wine, and the journal simply stops offering a source-conversation link for that note.
 
+### `chat_runs` — durable ownership of an assistant turn
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | |
+| household_id | text FK → user.id | denormalized for mandatory tenancy scoping |
+| conversation_id | text FK → conversations.id | cascade on conversation delete |
+| user_message_id | text FK → messages.id, unique | idempotency key for one submitted turn |
+| assistant_message_id | text FK → messages.id, unique | partial/final assistant message checkpoint |
+| status | text enum: running, completed, failed, interrupted | completed/failed/interrupted are terminal |
+| safe_error | text, nullable | user-facing failure summary only; no stack/provider payload |
+| started_at, heartbeat_at, updated_at | timestamp | |
+| finished_at | timestamp, nullable | set for every terminal state |
+
+A partial unique index permits at most one `running` row per conversation. Starting a
+turn is one transaction: validate the household-scoped conversation, reject a different
+active turn, insert the user message exactly once, insert the initially empty assistant
+message, and insert its `chat_runs` row. Retrying the same `user_message_id` returns the
+existing run rather than creating messages or invoking the model again. A different
+message submitted while that run is active is rejected.
+
+The server updates the assistant message's `parts` as safe stream checkpoints and moves
+the run once from `running` to a terminal status. Row checks require running rows to
+have no `finished_at`/`safe_error`, completed rows to have `finished_at` and no error,
+and failed/interrupted rows to have both `finished_at` and a non-empty safe error. Run
+rows are household-resident data; deleting a conversation cascades through its messages
+and runs.
+
 ### `recommendations`
 | Column | Type | Notes |
 |---|---|---|
@@ -160,3 +187,7 @@ wine, and the journal simply stops offering a source-conversation link for that 
 - **AC-DATA-7**: Deleting a conversation deletes its messages but preserves linked
   tasting notes with `conversation_id` set to null, while deleting or changing no wine,
   palate-profile, or recommendation data (integration).
+- **AC-DATA-8**: Chat-run migrations enforce one active run per conversation, unique
+  user/assistant message references, valid running/terminal row shapes, household
+  isolation, idempotent reuse of a submitted user-message id, and cascade on
+  conversation delete (integration).

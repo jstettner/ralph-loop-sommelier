@@ -132,7 +132,8 @@ is created. No folders, pins, unread state, or transcript export are in v1.
   `DELETE /api/conversations/[id]` permanently deletes the conversation and messages.
   Tasting notes and other learned data survive exactly as specified by AC-DATA-7. If
   the open conversation is deleted, success navigates to `/chat`; otherwise the row is
-  removed in place. A failed mutation retains the row/title and shows an actionable
+  removed in place. The API returns 409 instead of deleting any conversation with an
+  active chat run. A failed mutation retains the row/title and shows an actionable
   inline error.
 - Rename/delete controls are unavailable for the active conversation while a response
   is submitted or streaming, preventing deletion underneath an in-flight tool/model
@@ -164,6 +165,60 @@ is created. No folders, pins, unread state, or transcript export are in v1.
   model continuity and debugging.
 - Reloading a completed conversation restores each tool row in its terminal completed
   or failed state; it must not replay the running animation.
+
+## Navigation-safe continuation
+
+Once a user submits a valid turn, accidental navigation, reload, tab closure, or loss
+of the response connection must not cancel its model generation or tool work. This is
+continuity within the running single-node app, not a durable external job queue: a
+server/process restart cannot resume the provider stream and follows the interrupted-
+run behavior below.
+
+### Server-owned run lifecycle
+
+- `POST /api/chat` creates the user message, empty assistant message, and `chat_runs`
+  row atomically per specs/01 before model generation begins. The server owns and drains
+  the provider stream independently of the HTTP response; client disconnect/abort is
+  not forwarded as cancellation of that run. The connected client still receives the
+  normal live `UIMessage` stream, but response consumption is never the sole mechanism
+  that persists completion or tool results.
+- There is at most one active run per conversation. Reposting the same client-generated
+  user-message id rejoins/returns that run idempotently. Submitting a different message
+  while it is running returns 409 with safe active-run status, and every composer for
+  that conversation remains disabled until the run becomes terminal.
+- The server checkpoints the in-progress assistant `parts` no more often than once per
+  250ms, plus immediately at tool running/completed/failed transitions and at final
+  completion. Checkpoints preserve complete protocol parts needed for model continuity,
+  while the transcript and history preview continue applying their existing safe-
+  rendering rules. A tool call and its side effect execute once even if every client
+  disconnects and later rejoins.
+- `heartbeat_at` advances at least every 15 seconds while the provider/tool loop is
+  alive, including periods with no deltas. A `running` row with no heartbeat for 60
+  seconds is atomically marked `interrupted` on the next conversation read or send.
+  This prevents a server restart from leaving the chat permanently busy.
+- Completion stores the final assistant parts and marks the run `completed` in one
+  transaction. Provider/tool failure stores the latest safe parts, a sanitized error,
+  and `failed`; stale recovery uses `interrupted`. Terminal failure appears as an
+  actionable non-assistant status row, never fabricated sommelier prose, and re-enables
+  the composer so the user can send again. Raw errors and provider payloads remain
+  server-only.
+
+### Rejoining an active turn
+
+- `GET /api/conversations/[id]` includes the household-scoped current/recent run status
+  and its checkpointed assistant message. When `/chat/[id]` opens on a running turn, it
+  renders the partial assistant/tool state immediately, shows `CONTINUING RESPONSE…`,
+  disables duplicate send, and refreshes checkpoints so new output becomes visible
+  within one second. Refreshing stops as soon as the run is terminal and merges by
+  message/tool-call id rather than duplicating rows.
+- Returning while the run is active may restore the `NEURAL TRACE` only from persisted
+  provider-visible reasoning summaries and safe tool summaries belonging to that run.
+  Returning after completion follows AC-CHAT-10: the trace stays absent and only the
+  permanent transcript/tool terminal states render.
+- The history row for an active run displays a safe `GENERATING` status. The persisted
+  user message advances conversation activity immediately; completion advances it once
+  more. Navigating away or rejoining never creates another conversation, user message,
+  assistant message, model call, or tool execution.
 
 ## Acceptance criteria
 
@@ -212,3 +267,16 @@ is created. No folders, pins, unread state, or transcript export are in v1.
 - **AC-CHAT-16**: History search/actions are keyboard- and screen-reader-usable, the
   selected row exposes `aria-current`, and the mobile history list neither obscures the
   composer nor introduces horizontal overflow at 375×667 (component + mobile e2e).
+- **AC-CHAT-17**: During a delayed `MOCK:LIVE` turn, navigating to another app route
+  before completion does not abort generation; returning shows the completed assistant
+  answer and any tool effect exactly once, with no duplicate messages or model
+  invocation (desktop + mobile e2e).
+- **AC-CHAT-18**: Reopening while a `MOCK:LONGTRACE` turn is still running immediately
+  restores its checkpoint, shows continuing/generating state, advances visibly within
+  one second, disables duplicate send, and converges to one terminal assistant message
+  keyed to the same run; another household cannot inspect or rejoin it (integration +
+  e2e).
+- **AC-CHAT-19**: A deterministic provider failure and a stale-heartbeat fixture produce
+  safe `failed` and `interrupted` terminal states, re-enable sending, expose no raw error,
+  reject deletion while truly active, and never leave a conversation permanently busy
+  (integration + e2e).

@@ -7,15 +7,20 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Now
 
-- [ ] Chat-history specification is complete; implementation has not started
-  (specs/01 AC-DATA-7, specs/04 AC-CHAT-11–16, specs/10 AC-UI-13).
+- [ ] Chat history, navigation-safe continuation, and neural-trace auto-scroll are
+  specified; implementation has not started (AC-DATA-7–8, AC-LLM-10,
+  AC-CHAT-11–19, AC-UI-13–14).
 
 ## Next
 
 - [ ] Implement the chat-history data/API contract and migration (AC-DATA-7,
   AC-CHAT-11, AC-CHAT-13–15).
+- [ ] Implement durable chat-run lifecycle, checkpoint/rejoin, idempotency, and stale
+  recovery (AC-DATA-8, AC-CHAT-17–19).
 - [ ] Implement responsive desktop/mobile history UI and interaction coverage
   (AC-CHAT-12–16, AC-UI-13).
+- [ ] Implement bounded neural-trace auto-scroll and long-trace mock coverage
+  (AC-LLM-10, AC-UI-14).
 - [ ] Run `./verify.sh --done` and restore complete AC coverage.
 
 ## Done this session
@@ -96,6 +101,13 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Discoveries
 
+- 2026-07-19: Navigation-safe chat continuation uses a server-owned, SQLite-checkpointed
+  run rather than relying on the client response stream. Rejoin is idempotent and
+  refreshes partial state within one second; 15-second heartbeats and 60-second stale
+  recovery make server interruption terminal instead of leaving a permanent busy state.
+  This guarantees page-navigation/tab-close continuity, not cross-process job recovery.
+- 2026-07-19: Neural trace keeps a rolling 64-line visual buffer and auto-follows the
+  newest safe line without scrolling the page/transcript; reduced motion snaps directly.
 - 2026-07-19: Chat-history scope is household-wide browse/resume, title-only search,
   stable cursor pagination, rename, and hard delete with tasting-note preservation.
   V1 deliberately excludes folders, pins, unread state, full-transcript indexing, and
