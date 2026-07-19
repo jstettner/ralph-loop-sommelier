@@ -199,7 +199,7 @@ test("AC-CHAT-10 AC-UI-12 neural trace streams reasoning, dissolves at the answe
   const style = await trace.evaluate((element) => {
     const computed = getComputedStyle(element);
     return {
-      pointerEvents: computed.pointerEvents, position: computed.position, opacity: parseFloat(computed.opacity),
+      pointerEvents: computed.pointerEvents, position: computed.position,
       background: computed.backgroundColor, color: computed.color,
       width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height,
       vw: document.documentElement.clientWidth, vh: document.documentElement.clientHeight,
@@ -207,11 +207,16 @@ test("AC-CHAT-10 AC-UI-12 neural trace streams reasoning, dissolves at the answe
   });
   expect(style.pointerEvents).toBe("none");
   expect(style.position).toBe("fixed");
-  expect(style.opacity).toBeGreaterThanOrEqual(0.45);
-  expect(style.opacity).toBeLessThanOrEqual(0.55);
-  expect(style.background).toBe("rgba(0, 0, 0, 0)"); // no opaque backdrop
-  const channels = (style.color.match(/\d+/g) ?? []).slice(0, 3).map(Number);
-  expect(Math.min(...channels)).toBeGreaterThan(220); // white / warm-white
+  // Warm-white trace text at 45–55% opacity (read from the colour's alpha channel).
+  const textColor = (style.color.match(/[\d.]+/g) ?? []).map(Number);
+  expect(Math.min(textColor[0] ?? 0, textColor[1] ?? 0, textColor[2] ?? 0)).toBeGreaterThan(220);
+  expect(textColor[3]).toBeGreaterThanOrEqual(0.45);
+  expect(textColor[3]).toBeLessThanOrEqual(0.55);
+  // A dark translucent scrim dims the app beneath, but is never an opaque backdrop.
+  const backdrop = (style.background.match(/[\d.]+/g) ?? []).map(Number);
+  expect(backdrop[3]).toBeGreaterThan(0); // darkens the background
+  expect(backdrop[3]).toBeLessThan(1); // but stays non-opaque so the app is still visible
+  expect(Math.max(backdrop[0] ?? 0, backdrop[1] ?? 0, backdrop[2] ?? 0)).toBeLessThan(60); // dark scrim
   expect(style.width).toBeGreaterThanOrEqual(style.vw - 1);
   expect(style.height).toBeGreaterThanOrEqual(style.vh - 1);
 
@@ -243,11 +248,12 @@ test("AC-CHAT-10 AC-UI-12 neural trace streams reasoning, dissolves at the answe
   await expect(reduced).toContainText(/acidity and tannin history/i);
   const reducedStyle = await reduced.evaluate((element) => {
     const computed = getComputedStyle(element);
-    return { animationDuration: parseFloat(computed.animationDuration), opacity: parseFloat(computed.opacity) };
+    return { animationDuration: parseFloat(computed.animationDuration), color: computed.color };
   });
   expect(reducedStyle.animationDuration).toBeLessThanOrEqual(0.001);
-  expect(reducedStyle.opacity).toBeGreaterThanOrEqual(0.45);
-  expect(reducedStyle.opacity).toBeLessThanOrEqual(0.55);
+  const reducedAlpha = Number((reducedStyle.color.match(/[\d.]+/g) ?? [])[3]);
+  expect(reducedAlpha).toBeGreaterThanOrEqual(0.45);
+  expect(reducedAlpha).toBeLessThanOrEqual(0.55);
   await expect(page.getByText("I recorded that tasting after thinking through your acidity history.")).toBeVisible();
   await expect(page.getByTestId("neural-trace")).toBeHidden();
 });

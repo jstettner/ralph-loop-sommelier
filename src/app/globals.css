@@ -144,7 +144,9 @@ textarea {
 }
 
 /* NEURAL TRACE — transient ghost TUI projected over the CRT while reasoning/tool activity
-   streams (specs/10). Full-viewport, pointer-transparent, no opaque backdrop, medium opacity. */
+   streams (specs/10). Full-viewport, pointer-transparent, medium opacity. The backdrop is a
+   translucent dark scrim — it dims the app to make the trace read clearly but is never opaque,
+   so the real UI stays visibly superimposed beneath. */
 .neural-trace {
   position: fixed;
   inset: 0;
@@ -152,9 +154,11 @@ textarea {
   pointer-events: none;
   overflow: hidden;
   padding: clamp(16px, 4vw, 48px);
-  background: transparent;
-  color: #fdfbf3;
-  opacity: 0.5;
+  /* Dark translucent scrim: clearly dims the app behind so the trace reads, but stays
+     non-opaque (the UI is still visible beneath). The ghost "medium opacity" lives on the
+     text colour, so the scrim can dim independently of the 45–55% trace text. */
+  background-color: rgba(4, 6, 12, 0.68);
+  color: rgba(253, 251, 243, 0.52);
   font-size: 12px;
   line-height: 1.55;
   letter-spacing: 0.04em;
@@ -209,7 +213,7 @@ textarea {
 }
 
 @keyframes trace-dissolve {
-  from { opacity: 0.5; }
+  from { opacity: 1; }
   to { opacity: 0; }
 }
 

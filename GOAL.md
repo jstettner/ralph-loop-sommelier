@@ -20,6 +20,6 @@ palates; the 18-grape curriculum is browsable — with all data strictly scoped 
 household and every write attributed to a valid profile.
 
 Work in small increments: pick the most important gap vs the specs, implement it fully
-(no placeholders), run `./verify.sh`, commit when green, repeat. Never modify `specs/`,
+(no placeholders), run `./verify.sh`, commit when green, push to the git remote (should be on branch main), repeat. Never modify `specs/`,
 `verify.sh`, `scripts/guard.sh`, or this file — if a spec is wrong or ambiguous, stop
 and ask.
