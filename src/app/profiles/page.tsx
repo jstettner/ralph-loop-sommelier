@@ -11,8 +11,8 @@ export default async function ProfilesPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center py-8">
       <section className="terminal-panel !max-w-3xl" aria-labelledby="profiles-title">
-        <p className="mb-3 text-sm text-[var(--text-dim)]">somm@cellar:~$ select-taster</p>
-        <h1 id="profiles-title" className="bloom-cyan mb-8 text-2xl text-[var(--cyan)]">WHO&apos;S TASTING?</h1>
+        <p className="prompt-line mb-3">somm@cellar:~$ select-taster</p>
+        <h1 id="profiles-title" className="bloom-cyan mb-8 text-base tracking-[0.18em] text-[var(--cyan)]">WHO&apos;S TASTING?</h1>
         <ProfilePicker profiles={householdProfiles} />
       </section>
     </main>

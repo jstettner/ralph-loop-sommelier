@@ -27,11 +27,11 @@ export function CreateProfileForm() {
   return (
     <form className="space-y-6" onSubmit={submit}>
       <label className="block">
-        <span className="mb-2 block text-sm text-[var(--text-dim)]">TASTER NAME</span>
+        <span className="form-label">TASTER NAME</span>
         <input className="terminal-input" name="name" minLength={1} maxLength={24} autoFocus required />
       </label>
       {error && <p className="text-sm text-[var(--magenta)]" role="alert">{error}</p>}
-      <button className="terminal-button w-full" type="submit" disabled={pending}>{pending ? "CREATING…" : "CREATE TASTER"}</button>
+      <button className="terminal-button terminal-button--primary w-full" type="submit" disabled={pending}>{pending ? "CREATING…" : "CREATE TASTER"}</button>
     </form>
   );
 }

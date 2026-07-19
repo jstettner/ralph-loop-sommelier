@@ -58,21 +58,21 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   return (
     <form className="space-y-6" onSubmit={submit}>
       <label className="block">
-        <span className="mb-2 block text-sm text-[var(--text-dim)]">EMAIL</span>
+        <span className="form-label">EMAIL</span>
         <input className="terminal-input" name="email" type="email" autoComplete="email" required />
       </label>
       <label className="block">
-        <span className="mb-2 block text-sm text-[var(--text-dim)]">PASSWORD</span>
+        <span className="form-label">PASSWORD</span>
         <input className="terminal-input" name="password" type="password" minLength={8}
           autoComplete={mode === "signup" ? "new-password" : "current-password"} required />
       </label>
       {error && <p className="text-sm text-[var(--magenta)]" role="alert">{error}</p>}
-      <button className="terminal-button w-full" type="submit" disabled={pending}>
+      <button className="terminal-button terminal-button--primary w-full" type="submit" disabled={pending}>
         {pending ? "WORKING…" : mode === "signup" ? "CREATE HOUSEHOLD" : "LOG IN"}
       </button>
-      <p className="text-sm text-[var(--text-dim)]">
+      <p className="text-xs text-[var(--text-dim)]">
         {mode === "signup" ? "Already have a household? " : "New to Wine Trainer? "}
-        <Link href={mode === "signup" ? "/login" : "/signup"}>{mode === "signup" ? "LOG IN" : "SIGN UP"}</Link>
+        <Link className="tracking-[0.1em]" href={mode === "signup" ? "/login" : "/signup"}>{mode === "signup" ? "LOG IN" : "SIGN UP"}</Link>
       </p>
     </form>
   );

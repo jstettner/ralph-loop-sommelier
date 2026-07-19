@@ -13,9 +13,9 @@ const choices = {
 function RadioQuestion({ name, title, options }: { name: string; title: string; options: readonly (readonly [string, string])[] }) {
   return (
     <fieldset className="space-y-3 border-t border-[var(--border)] pt-6">
-      <legend className="mb-3 text-[var(--text)]">{title}</legend>
+      <legend className="mb-3 text-xs tracking-[0.12em] text-[var(--text)]">{title}</legend>
       {options.map(([value, label]) => <label className="flex min-h-11 items-center gap-3" key={value}>
-        <input type="radio" name={name} value={value} required /> {label}
+        <input className="accent-[var(--cyan)]" type="radio" name={name} value={value} required /> {label}
       </label>)}
     </fieldset>
   );
@@ -61,19 +61,19 @@ export function OnboardingForm() {
       <RadioQuestion name="tea" title="3. HOW DO YOU TAKE YOUR TEA?" options={choices.tea} />
       <RadioQuestion name="chocolate" title="4. DARK OR MILK CHOCOLATE?" options={choices.chocolate} />
       <fieldset className="space-y-3 border-t border-[var(--border)] pt-6">
-        <legend className="mb-3">5. WHAT HAVE YOU ENJOYED DRINKING?</legend>
+        <legend className="mb-3 text-xs tracking-[0.12em]">5. WHAT HAVE YOU ENJOYED DRINKING?</legend>
         {[["bold_reds", "Bold reds"], ["light_reds", "Light reds"], ["crisp_whites", "Crisp whites"],
           ["rich_whites", "Rich whites"], ["rose", "Rosé"], ["bubbles", "Bubbles"], ["none", "None yet"]].map(([value, label]) =>
-          <label className="flex min-h-11 items-center gap-3" key={value}><input type="checkbox" name="enjoyed" value={value} /> {label}</label>)}
+          <label className="flex min-h-11 items-center gap-3" key={value}><input className="accent-[var(--cyan)]" type="checkbox" name="enjoyed" value={value} /> {label}</label>)}
       </fieldset>
       <label className="block border-t border-[var(--border)] pt-6">
-        <span className="mb-4 block">6. HOW ADVENTUROUS ARE YOU FEELING? (1–5)</span>
+        <span className="mb-4 block text-xs tracking-[0.12em]">6. HOW ADVENTUROUS ARE YOU FEELING? (1–5)</span>
         <input className="w-full accent-[var(--cyan)]" name="adventurousness" type="range" min="1" max="5" defaultValue="3" />
       </label>
       {error && <p className="text-[var(--magenta)]" role="alert">{error}</p>}
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button className="terminal-button flex-1" type="submit" disabled={pending}>SAVE MY PALATE</button>
-        <button className="min-h-11 border border-[var(--border)] px-4 text-[var(--text-dim)]" type="button" onClick={skip} disabled={pending}>
+        <button className="terminal-button terminal-button--primary flex-1" type="submit" disabled={pending}>SAVE MY PALATE</button>
+        <button className="terminal-button" type="button" onClick={skip} disabled={pending}>
           I&apos;LL FIGURE IT OUT AS I GO
         </button>
       </div>

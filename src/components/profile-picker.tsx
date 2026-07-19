@@ -29,13 +29,13 @@ export function ProfilePicker({ profiles }: { profiles: Profile[] }) {
     <div className="grid gap-4 sm:grid-cols-2">
       {profiles.map((profile) => (
         <button key={profile.id} type="button" onClick={() => choose(profile.id)}
-          className={`profile-tile bloom-${profile.color}`} style={{ color: `var(--${profile.color})` }}>
+          className={`profile-tile tracking-[0.1em] bloom-${profile.color}`} style={{ color: `var(--${profile.color})` }}>
           <WineGlass color={`var(--${profile.color})`} /> {profile.name}
         </button>
       ))}
       {profiles.length < 4
-        ? <Link className="profile-tile text-[var(--text-dim)] no-underline" href="/profiles/new">+ NEW TASTER</Link>
-        : <span className="profile-tile cursor-not-allowed text-[var(--text-dim)]" aria-disabled="true">PROFILE LIMIT REACHED</span>}
+        ? <Link className="profile-tile text-xs tracking-[0.1em] text-[var(--text-dim)] no-underline transition-colors hover:text-[var(--text)]" href="/profiles/new">+ NEW TASTER</Link>
+        : <span className="profile-tile cursor-not-allowed text-xs tracking-[0.1em] text-[var(--text-dim)]" aria-disabled="true">PROFILE LIMIT REACHED</span>}
       {error && <p className="text-sm text-[var(--magenta)]" role="alert">{error}</p>}
     </div>
   );

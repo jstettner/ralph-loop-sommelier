@@ -2,13 +2,11 @@
 
 ## Now
 
-- Operator-requested visual polish pass (within pinned `specs/10-ui.md`, no spec/test
-  edits): (1) load Geist Mono ✓, (2) design-system CSS discipline in globals.css,
-  (3) pixel-icon redesign + favicon, (4) per-component accent-restraint pass.
+- None — visual polish pass complete and green.
 
 ## Next
 
-- None after the polish pass.
+- None.
 
 ## Done
 
@@ -35,3 +33,6 @@
 - 2026-07-18: Curriculum/UI increment is green across unit, build, Chromium, and WebKit; test references now cover all 69 acceptance criteria pending the completion gate.
 - 2026-07-18: Completion gate passed: typecheck, lint, guard, standalone build, 15 unit tests, 15 integration tests, 8 dual-project e2e runs, and 69/69 AC coverage.
 - 2026-07-18: No font was ever actually bundled — globals.css named "JetBrains Mono" without loading it, so every visitor saw their OS mono fallback. Spec 10 mandates Geist Mono via next/font; now loaded from the `geist` package (local woff2, no build-time network, keeps `verify.sh` builds deterministic offline).
+- 2026-07-18: The old `PixelIcon` base stamped a generic 8×8 accent square + highlight pip over every sprite while each icon's own rects rendered in near-invisible `#1A1A1C`, so all eight icons read as identical blobs. Redrawn: base is a bare `<g fill={color}>` wrapper; each sprite supplies outline + inset-accent + ≤1 highlight rects.
+- 2026-07-18: Tailwind v4 emits utilities inside `@layer utilities`, so any UNLAYERED rule in globals.css silently beats utility classes (unlayered > layered regardless of specificity). The bare `a { color: var(--cyan) }` rule was overriding every `text-[var(--…)]` utility on links app-wide (all nav links rendered cyan). Element-level defaults in globals.css must live in `@layer base`.
+- 2026-07-18: A `next dev` server running in the same checkout corrupts `.next` for `verify.sh`'s build+`next start` e2e phase (webpack-runtime `TypeError: a[d] is not a function`, pages 500). Stop `npm run dev` before running the gate.

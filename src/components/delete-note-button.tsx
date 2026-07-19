@@ -12,5 +12,5 @@ export function DeleteNoteButton({ noteId }: { noteId: string }) {
     if (!response.ok) { setError("The tasting note could not be deleted."); return; }
     router.push("/journal"); router.refresh();
   }
-  return <div><button className="min-h-11 border border-[var(--magenta)] px-4 text-[var(--magenta)]" type="button" onClick={remove}>DELETE NOTE</button>{error && <p className="mt-2 text-[var(--magenta)]" role="alert">{error}</p>}</div>;
+  return <div><button className="terminal-button terminal-button--danger" type="button" onClick={remove}>DELETE NOTE</button>{error && <p className="mt-2 text-[var(--magenta)]" role="alert">{error}</p>}</div>;
 }

@@ -8,5 +8,5 @@ export default async function NewChatPage() {
   if (!session) return null;
   const active = await getActiveProfile(session);
   if (!active) return null;
-  return <div><p className="mb-5 text-sm text-[var(--text-dim)]">somm@cellar:~$ new-session</p><ChatStarter profiles={listProfiles(session.user.id)} activeProfileId={active.id} models={getAvailableModels()} defaultModel={getDefaultModel()} /></div>;
+  return <div><p className="prompt-line mb-5">somm@cellar:~$ new-session</p><ChatStarter profiles={listProfiles(session.user.id)} activeProfileId={active.id} models={getAvailableModels()} defaultModel={getDefaultModel()} /></div>;
 }

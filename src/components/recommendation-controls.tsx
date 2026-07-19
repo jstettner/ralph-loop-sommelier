@@ -13,7 +13,7 @@ export function GenerateRecommendations({ mode }: { mode: "profile" | "joint" })
     if (!response.ok) { setError(((await response.json()) as { error?: string }).error ?? "Generation failed."); setPending(false); return; }
     router.refresh(); setPending(false);
   }
-  return <div><button className="terminal-button" type="button" onClick={generate} disabled={pending}>{pending ? "THINKING…" : mode === "joint" ? "SUGGEST A BOTTLE FOR ALL OF US" : "SUGGEST MY NEXT BOTTLE"}</button>{error && <p className="mt-2 text-sm text-[var(--magenta)]" role="alert">{error}</p>}</div>;
+  return <div><button className="terminal-button terminal-button--primary" type="button" onClick={generate} disabled={pending}>{pending ? "THINKING…" : mode === "joint" ? "SUGGEST A BOTTLE FOR ALL OF US" : "SUGGEST MY NEXT BOTTLE"}</button>{error && <p className="mt-2 text-sm text-[var(--magenta)]" role="alert">{error}</p>}</div>;
 }
 
 export function RecommendationStatus({ id }: { id: string }) {
@@ -25,5 +25,5 @@ export function RecommendationStatus({ id }: { id: string }) {
     if (response.ok) router.refresh();
     setPending(false);
   }
-  return <div className="mt-4 flex flex-wrap gap-2">{(["purchased", "tasted", "dismissed"] as const).map((status) => <button key={status} className="min-h-11 border border-[var(--border)] px-3 text-xs uppercase text-[var(--text-dim)]" type="button" disabled={pending} onClick={() => setStatus(status)}>{status}</button>)}</div>;
+  return <div className="mt-4 flex flex-wrap gap-2">{(["purchased", "tasted", "dismissed"] as const).map((status) => <button key={status} className="min-h-11 cursor-pointer border border-[var(--border)] px-3 text-xs uppercase tracking-[0.1em] text-[var(--text-dim)] transition-colors hover:border-[var(--border-bright)] hover:text-[var(--text)]" type="button" disabled={pending} onClick={() => setStatus(status)}>{status}</button>)}</div>;
 }

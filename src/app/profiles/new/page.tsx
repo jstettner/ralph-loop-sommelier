@@ -10,8 +10,8 @@ export default async function NewProfilePage() {
   return (
     <main className="flex min-h-dvh items-center justify-center py-8">
       <section className="terminal-panel" aria-labelledby="new-profile-title">
-        <p className="mb-3 text-sm text-[var(--text-dim)]">somm@cellar:~$ add-taster</p>
-        <h1 id="new-profile-title" className="bloom-cyan mb-8 text-2xl text-[var(--cyan)]">NEW TASTER</h1>
+        <p className="prompt-line mb-3">somm@cellar:~$ add-taster</p>
+        <h1 id="new-profile-title" className="bloom-cyan mb-8 text-base tracking-[0.18em] text-[var(--cyan)]">NEW TASTER</h1>
         <CreateProfileForm />
       </section>
     </main>
