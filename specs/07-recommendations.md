@@ -77,3 +77,7 @@ The post-login landing page. Sections:
   neural trace and safe recommendation-tool state, dissolve the overlay on completion,
   and render the newly persisted cards without reload; errors close the active trace
   and remain actionable in the underlying dashboard (desktop + mobile e2e).
+- **AC-REC-8**: No wine appears more than once across the visible recommendation
+  sections. Duplicate identity is the normalized wine name and producer combination;
+  matching is case-insensitive and ignores surrounding or repeated whitespace
+  (integration + e2e).
