@@ -30,6 +30,33 @@ body {
   min-width: 360px;
   font-size: 14px;
   line-height: 1.6;
+  text-shadow:
+    0 0 2px color-mix(in srgb, currentColor 30%, transparent),
+    0 0 7px color-mix(in srgb, currentColor 14%, transparent);
+}
+
+::selection {
+  background: rgb(0 229 255 / 22%);
+  color: var(--text);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border: 1px solid var(--bg);
 }
 
 @layer base {
@@ -61,17 +88,50 @@ textarea {
   position: fixed;
   z-index: 100;
   inset: 0;
+  overflow: hidden;
   pointer-events: none;
-  background: repeating-linear-gradient(to bottom, rgb(255 255 255 / 3%) 0, rgb(255 255 255 / 3%) 1px, transparent 1px, transparent 3px);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 .2'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.5'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at center, transparent 40%, rgb(0 0 0 / 6%) 55%, rgb(0 0 0 / 22%) 78%, rgb(0 0 0 / 50%) 100%),
+    repeating-linear-gradient(to bottom, rgb(232 232 227 / 1.5%) 0, rgb(232 232 227 / 1.5%) 1px, rgb(0 0 0 / 16%) 1px, rgb(0 0 0 / 16%) 2px);
+  background-size: 180px 180px, 100% 100%, 100% 2px;
+  background-blend-mode: soft-light, normal, normal;
+  animation: crt-flicker 8s steps(1, end) infinite;
+}
+
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: -32vh;
+  height: 26vh;
+  background: linear-gradient(to bottom, transparent 0%, rgb(0 229 255 / 1%) 18%, rgb(0 229 255 / 3.5%) 38%, rgb(0 229 255 / 7%) 50%, rgb(0 229 255 / 3.5%) 62%, rgb(0 229 255 / 1%) 82%, transparent 100%);
+  mix-blend-mode: screen;
+  filter: blur(1px);
+  opacity: 0.55;
+  will-change: transform;
+  animation: crt-roll 9s linear infinite;
+}
+
+@keyframes crt-roll {
+  from { transform: translate3d(0, -8vh, 0); }
+  to { transform: translate3d(0, 148vh, 0); }
+}
+
+@keyframes crt-flicker {
+  0%, 17%, 19%, 53%, 55%, 83%, 100% { opacity: 1; }
+  18% { opacity: 0.93; }
+  54% { opacity: 0.96; }
+  84% { opacity: 0.95; }
 }
 
 .bloom-cyan {
-  text-shadow: 0 0 8px rgb(0 229 255 / 35%);
+  text-shadow: 0 0 2px rgb(0 229 255 / 45%), 0 0 8px rgb(0 229 255 / 35%);
 }
 
-.bloom-magenta { text-shadow: 0 0 8px rgb(255 46 136 / 35%); }
-.bloom-amber { text-shadow: 0 0 8px rgb(255 176 0 / 35%); }
-.bloom-green { text-shadow: 0 0 8px rgb(63 185 80 / 35%); }
+.bloom-magenta { text-shadow: 0 0 2px rgb(255 46 136 / 45%), 0 0 8px rgb(255 46 136 / 35%); }
+.bloom-amber { text-shadow: 0 0 2px rgb(255 176 0 / 45%), 0 0 8px rgb(255 176 0 / 35%); }
+.bloom-green { text-shadow: 0 0 2px rgb(63 185 80 / 45%), 0 0 8px rgb(63 185 80 / 35%); }
 
 .page-title {
   display: flex;
