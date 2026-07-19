@@ -169,3 +169,85 @@ test("AC-CHAT-9 AC-SRCH-7 streamed tool lifecycle rows, safe summaries, and pers
   await expect(page.getByTestId("source-link").first()).toBeVisible();
   await expect(page.getByTestId("source-link").first()).toHaveAttribute("href", /^https:\/\//);
 });
+
+test("AC-CHAT-10 AC-UI-12 neural trace streams reasoning, dissolves at the answer, and stays out of the a11y tree", async ({ page }, testInfo) => {
+  const email = `chat10-${testInfo.project.name}@example.test`;
+  await page.goto("/signup");
+  await page.getByLabel("EMAIL").fill(email);
+  await page.getByLabel("PASSWORD").fill("correct-horse");
+  await page.getByRole("button", { name: "CREATE HOUSEHOLD" }).click();
+  await page.getByLabel("TASTER NAME").fill("Sky");
+  await page.getByRole("button", { name: "CREATE TASTER" }).click();
+  await page.getByRole("button", { name: "I'LL FIGURE IT OUT AS I GO" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/chat");
+  await page.getByRole("button", { name: "START CHAT" }).click();
+  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/);
+
+  await page.getByRole("textbox", { name: "Message" }).fill("MOCK:REASON");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  // Appears on the first reasoning delta with the provider-visible summary.
+  const trace = page.getByTestId("neural-trace");
+  await expect(trace).toBeVisible();
+  await expect(trace).toContainText("NEURAL TRACE");
+  await expect(trace).toContainText(/acidity and tannin history/i);
+
+  // AC-UI-12: full-viewport, pointer-transparent, out of the a11y tree, 45–55% white/warm-white,
+  // no opaque backdrop. Read all computed properties in one round-trip to stay within the window.
+  await expect(trace).toHaveAttribute("aria-hidden", "true");
+  const style = await trace.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      pointerEvents: computed.pointerEvents, position: computed.position, opacity: parseFloat(computed.opacity),
+      background: computed.backgroundColor, color: computed.color,
+      width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height,
+      vw: document.documentElement.clientWidth, vh: document.documentElement.clientHeight,
+    };
+  });
+  expect(style.pointerEvents).toBe("none");
+  expect(style.position).toBe("fixed");
+  expect(style.opacity).toBeGreaterThanOrEqual(0.45);
+  expect(style.opacity).toBeLessThanOrEqual(0.55);
+  expect(style.background).toBe("rgba(0, 0, 0, 0)"); // no opaque backdrop
+  const channels = (style.color.match(/\d+/g) ?? []).slice(0, 3).map(Number);
+  expect(Math.min(...channels)).toBeGreaterThan(220); // white / warm-white
+  expect(style.width).toBeGreaterThanOrEqual(style.vw - 1);
+  expect(style.height).toBeGreaterThanOrEqual(style.vh - 1);
+
+  // Interleaved tool activity shows in the trace before the answer takes over.
+  await expect(trace).toContainText(/tasting note/i);
+
+  // Dissolves when the final answer begins and unmounts; reasoning is not left in the transcript.
+  await expect(page.getByText("I recorded that tasting after thinking through your acidity history.")).toBeVisible();
+  await expect(page.getByTestId("neural-trace")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+
+  // Absent after reload — the trace never becomes permanent conversation content.
+  await page.reload();
+  await expect(page.getByText("I recorded that tasting after thinking through your acidity history.")).toBeVisible();
+  await expect(page.getByTestId("neural-trace")).toBeHidden();
+
+  // A no-reasoning turn fabricates no trace at all.
+  await page.getByRole("textbox", { name: "Message" }).fill("MOCK:TASTING");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByText("I recorded the 2022 Malbec for your tasting journal.")).toBeVisible();
+  await expect(page.getByTestId("neural-trace")).toBeHidden();
+
+  // Under reduced motion the trace is static (no animation) but still readable, and still unmounts.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("textbox", { name: "Message" }).fill("MOCK:REASON");
+  await page.getByRole("button", { name: "Send message" }).click();
+  const reduced = page.getByTestId("neural-trace");
+  await expect(reduced).toBeVisible();
+  await expect(reduced).toContainText(/acidity and tannin history/i);
+  const reducedStyle = await reduced.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return { animationDuration: parseFloat(computed.animationDuration), opacity: parseFloat(computed.opacity) };
+  });
+  expect(reducedStyle.animationDuration).toBeLessThanOrEqual(0.001);
+  expect(reducedStyle.opacity).toBeGreaterThanOrEqual(0.45);
+  expect(reducedStyle.opacity).toBeLessThanOrEqual(0.55);
+  await expect(page.getByText("I recorded that tasting after thinking through your acidity history.")).toBeVisible();
+  await expect(page.getByTestId("neural-trace")).toBeHidden();
+});

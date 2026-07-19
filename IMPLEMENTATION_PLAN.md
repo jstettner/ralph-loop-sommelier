@@ -22,12 +22,20 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
   e2e). Mock gained MOCK:LIVE (pre-tool preface + long tool-input for observable running); global
   delay 25ms to keep server load low; fixed a pre-existing logout redirect race in auth e2e.
 
-## Now
+## Done this session (continued)
 
-- [ ] Increment E — NEURAL TRACE overlay (globals.css + component), chat driven by reasoning,
-  dashboard generate → streamText UI stream consumed client-side driving overlay + card refresh
-  without reload (AC-CHAT-10, AC-REC-7, AC-UI-12)
-- [ ] Final: `./verify.sh --done` → 81/81
+- [x] Increment E — NEURAL TRACE overlay (`src/components/neural-trace.tsx` + globals.css): full
+  viewport, pointer-transparent, aria-hidden, ~50% warm-white, no opaque backdrop, dissolve+unmount,
+  reduced-motion static. Chat drives it from reasoning parts (dissolves at final text; no-reasoning →
+  no trace). Dashboard generate now streams a UI message stream; the client consumes it to drive the
+  overlay from safe save_recommendation activity, then refreshes cards without reload. Shared
+  tool-summary helpers extracted to `src/lib/tool-summary.ts` (AC-CHAT-10, AC-REC-7, AC-UI-12).
+
+## Done — goal complete
+
+- [x] `./verify.sh --done` passes: typecheck, lint, guard, standalone build, unit, integration,
+  and Playwright e2e (desktop + mobile) all green; **all 81 acceptance criteria referenced by
+  genuine tests**. Verified stable across repeated full e2e runs.
 
 ## Key design decisions (from spec + API recon)
 

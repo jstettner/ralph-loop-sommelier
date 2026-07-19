@@ -17,8 +17,8 @@ type MockTrigger = keyof typeof MOCK_SCRIPTS;
 // Provider-visible reasoning summaries only — never a raw internal scratchpad (specs/03).
 const REASONING_SUMMARIES: Partial<Record<MockTrigger, { step1: string[]; step2: string[] }>> = {
   "MOCK:REASON": {
-    step1: ["Weighing this taster's ", "acidity and tannin history ", "to frame the note…"],
-    step2: ["Comparing it to benchmark ", "styles before I answer…"],
+    step1: ["Weighing this taster's ", "acidity and tannin history ", "against the recorded ", "descriptors ", "to frame the note ", "carefully…"],
+    step2: ["Comparing it to benchmark ", "styles ", "from the curriculum ", "before I answer…"],
   },
 };
 
@@ -125,8 +125,9 @@ async function stream(options: LanguageModelV2CallOptions) {
     // answer until the tool result returns.
     if (reasoning) chunks.push(...reasoningChunks("mock-reason-1", reasoning.step1));
     if (preface) chunks.push(...textChunks(preface, "mock-preface"));
-    // MOCK:LIVE streams a long tool input so its "running" row is comfortably observable in e2e.
-    const toolParts = trigger === "MOCK:LIVE" ? 14 : 4;
+    // MOCK:LIVE / MOCK:REASON stream a long tool input so the running row and the trace overlay
+    // are comfortably observable in e2e.
+    const toolParts = trigger === "MOCK:LIVE" || trigger === "MOCK:REASON" ? 14 : 4;
     calls.forEach((call, index) => chunks.push(...toolCallChunks(index, call, toolParts)));
     chunks.push({ type: "finish", finishReason: "tool-calls", usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } });
   } else {

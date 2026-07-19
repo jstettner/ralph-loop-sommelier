@@ -4,74 +4,12 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Profile } from "@/db/schema";
-
-// A safe, validated view of an AI SDK tool part. We never render raw JSON, ids, or provider
-// payloads — only friendly summaries derived from these fields (specs/04).
-type ToolPart = {
-  type: string;
-  toolCallId?: string;
-  toolName?: string;
-  state?: "input-streaming" | "input-available" | "output-available" | "output-error";
-  input?: Record<string, unknown>;
-  output?: Record<string, unknown>;
-  errorText?: string;
-};
-
-type SourceLink = { title?: string; url?: string };
-
-function isToolPart(part: { type: string }): boolean {
-  return part.type.startsWith("tool-") || part.type === "dynamic-tool";
-}
-
-function toolName(part: ToolPart): string {
-  if (part.type === "dynamic-tool") return part.toolName ?? "tool";
-  return part.type.slice("tool-".length);
-}
-
-function nameFor(participants: Profile[], id: unknown): string | null {
-  return typeof id === "string" ? participants.find((profile) => profile.id === id)?.name ?? null : null;
-}
-
-const LABELS: Record<string, string> = {
-  record_tasting_note: "Recording tasting note",
-  update_palate_profile: "Updating palate profile",
-  save_recommendation: "Saving recommendation",
-  search_web: "Searching the web",
-  search_wine_availability: "Finding where to buy",
-};
-
-const LABELS_DONE: Record<string, string> = {
-  record_tasting_note: "Recorded tasting note",
-  update_palate_profile: "Updated palate profile",
-  save_recommendation: "Saved recommendation",
-  search_web: "Searched the web",
-  search_wine_availability: "Availability results",
-};
-
-// Concise, safe summary from the (possibly partial) validated tool input — no ids, no JSON.
-function toolDetail(name: string, input: Record<string, unknown> | undefined, participants: Profile[]): string {
-  if (!input) return "";
-  if (name === "record_tasting_note") {
-    const wine = (input.wine as { name?: string } | undefined)?.name;
-    return [wine, nameFor(participants, input.taster_profile_id)].filter(Boolean).join(" · ");
-  }
-  if (name === "update_palate_profile") return nameFor(participants, input.taster_profile_id) ?? "";
-  if (name === "save_recommendation") {
-    const target = input.for_profile_id === null ? "the table" : nameFor(participants, input.for_profile_id);
-    return [input.wine_name as string | undefined, target].filter(Boolean).join(" · ");
-  }
-  if (name === "search_web" || name === "search_wine_availability") return (input.query as string | undefined) ?? "";
-  return "";
-}
-
-function sourcesFrom(part: ToolPart): SourceLink[] {
-  const raw = part.state === "output-available" ? (part.output?.sources as SourceLink[] | undefined) : undefined;
-  return Array.isArray(raw) ? raw.filter((source) => typeof source.url === "string") : [];
-}
+import { NeuralTrace, traceLinesFromParts } from "@/components/neural-trace";
+import { isToolPart, LABELS, LABELS_DONE, sourcesFrom, toolDetail, toolName, toolStatus, type ToolPart } from "@/lib/tool-summary";
 
 function ToolActivity({ part, participants }: { part: ToolPart; participants: Profile[] }) {
   const name = toolName(part);
-  const status = part.state === "output-error" ? "failed" : part.state === "output-available" ? "completed" : "running";
+  const status = toolStatus(part);
   const label = (status === "completed" ? LABELS_DONE[name] : LABELS[name]) ?? name.replaceAll("_", " ");
   const detail = toolDetail(name, part.input, participants);
   const sources = sourcesFrom(part);
@@ -106,6 +44,34 @@ export function ChatClient({ conversationId, initialMessages, participants, mode
   const transcript = useRef<HTMLDivElement>(null);
   const starterSent = useRef(false);
   const busy = status === "streaming" || status === "submitted";
+
+  // ── NEURAL TRACE overlay (specs/04, specs/10) ──
+  // Chat is driven by provider-visible reasoning: the overlay opens on the first reasoning delta
+  // and dissolves once the final answer text begins. A no-reasoning turn never opens it.
+  const active = busy ? messages[messages.length - 1] : undefined;
+  const assistant = active && active.role === "assistant" ? active : undefined;
+  const reasoningPresent = assistant?.parts.some((part) => part.type === "reasoning") ?? false;
+  const lastPart = assistant?.parts[assistant.parts.length - 1];
+  const finalTextBegan = lastPart?.type === "text" && ((lastPart as { text?: string }).text?.trim().length ?? 0) > 0;
+  const traceOpen = reasoningPresent && !finalTextBegan;
+  const traceLines = assistant ? traceLinesFromParts(assistant.parts, participants) : [];
+  const traceKey = traceLines.join("\n");
+  const linesRef = useRef<string[]>([]);
+  linesRef.current = traceLines;
+  const [tracePhase, setTracePhase] = useState<"hidden" | "open" | "dissolving">("hidden");
+  const [traceRendered, setTraceRendered] = useState<string[]>([]);
+
+  useEffect(() => { if (traceOpen) setTraceRendered(linesRef.current); }, [traceOpen, traceKey]);
+  useEffect(() => {
+    if (traceOpen) { setTracePhase("open"); return; }
+    setTracePhase((prev) => (prev === "open" ? "dissolving" : prev));
+  }, [traceOpen]);
+  useEffect(() => {
+    if (tracePhase !== "dissolving") return;
+    const timer = setTimeout(() => setTracePhase("hidden"), 800);
+    return () => clearTimeout(timer);
+  }, [tracePhase]);
+
   useEffect(() => { transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" }); }, [messages, status]);
   useEffect(() => {
     if (starter && initialMessages.length === 0 && !starterSent.current) {
@@ -122,6 +88,7 @@ export function ChatClient({ conversationId, initialMessages, participants, mode
     await sendMessage({ text });
   }
   return <div className="flex h-[calc(100dvh-7.5rem)] min-h-[520px] flex-col md:h-[calc(100dvh-4rem)]">
+    {tracePhase !== "hidden" && <NeuralTrace lines={traceRendered} dissolving={tracePhase === "dissolving"} />}
     <header className="border-b border-[var(--border)] pb-4">
       <p className="text-[11px] tracking-[0.18em] text-[var(--text-dim)]">PARTICIPANTS</p>
       <div className="mt-2 flex flex-wrap gap-3">{participants.map((profile) => <span key={profile.id} className={`text-xs tracking-[0.1em] bloom-${profile.color}`} style={{ color: `var(--${profile.color})` }}>{profile.name}</span>)}</div>

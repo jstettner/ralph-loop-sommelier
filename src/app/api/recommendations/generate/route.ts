@@ -1,9 +1,6 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { generateText, stepCountIs } from "ai";
+import { stepCountIs, streamText } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { recommendations } from "@/db/schema";
 import { recordCacheMetrics } from "@/lib/llm/diagnostics";
 import { getDefaultModel, getModel, getModelCapabilities } from "@/lib/llm/registry";
 import { buildRecommendationRequest } from "@/lib/llm/request";
@@ -34,16 +31,17 @@ export async function POST(request: Request) {
     participantMemory: memory.participantMemory, curriculum: memory.curriculum,
     shared: participantIds.length > 1, prompt,
   });
-  const generated = await generateText({
+  // A non-chat operation: it streams reasoning + save_recommendation activity to drive the
+  // NEURAL TRACE overlay and persists recommendations via the tool, but creates no conversation
+  // or transcript (specs/07). The client refreshes the dashboard once the stream completes.
+  const result = streamText({
     model: getModel(modelId),
     tools: { save_recommendation: tools.save_recommendation }, stopWhen: stepCountIs(2),
+    onFinish: ({ providerMetadata }) => recordCacheMetrics(modelId, providerMetadata),
     system: assembled.system,
     messages: assembled.messages,
     providerOptions: assembled.providerOptions,
     allowSystemInMessages: assembled.allowSystemInMessages,
   });
-  recordCacheMetrics(modelId, generated.providerMetadata);
-  const targetCondition = parsed.data.mode === "joint" ? isNull(recommendations.profileId) : eq(recommendations.profileId, active.id);
-  const rows = db.select().from(recommendations).where(and(eq(recommendations.householdId, session.user.id), targetCondition)).orderBy(desc(recommendations.createdAt)).all();
-  return NextResponse.json({ recommendations: rows });
+  return result.toUIMessageStreamResponse({ sendReasoning: true, sendSources: true });
 }
