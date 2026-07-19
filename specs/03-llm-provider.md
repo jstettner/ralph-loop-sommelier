@@ -87,8 +87,8 @@ When `MOCK_LLM=1`:
 | `MOCK:TASTING` | Calls `record_tasting_note` for the **first participant** with fixed args (a 2022 Malbec, verdict "liked", nose ["blackberry","violet"], rating 4), then streams a short confirmation text. |
 | `MOCK:SHARED` | Calls `record_tasting_note` **twice against the same wine** — once per each of the conversation's first two participants, with different fixed args (participant 1: rating 4, verdict "liked"; participant 2: rating 2, verdict "disliked", nose ["green pepper"]) — then streams a confirmation naming both tasters. Requires ≥2 participants; with 1 it behaves like `MOCK:TASTING`. |
 | `MOCK:PROFILE` | Calls `update_palate_profile` for the first participant with fixed args (tannin 4, notes mention "bold reds"), then streams confirmation. |
-| `MOCK:REC` | Calls `save_recommendation` with fixed args (a Mendoza Malbec, price_band 15_30, source chat, targeted at the first participant), then streams confirmation. |
-| `MOCK:JOINTREC` | Calls `save_recommendation` with fixed args for a **joint** recommendation (profile_id null — "for both of you", reasoning mentions both palates), then streams confirmation. |
+| `MOCK:REC` | Calls `save_recommendation` for the first participant with the first candidate absent from `CURRENT VISIBLE RECOMMENDATIONS` (deterministic order starts Mendoza Malbec, then Etna Rosso), then streams confirmation naming the selected wine. |
+| `MOCK:JOINTREC` | Calls `save_recommendation` for a **joint** recommendation (profile_id null — "for both of you") with the first absent joint candidate (deterministic order starts Cru Beaujolais, then Rioja Reserva), then streams confirmation naming the selected wine. |
 | `MOCK:SEARCH` | Calls `search_wine_availability` with a fixed query, then streams a text that includes the fixture result's store name. |
 | anything else | Streams `MOCK RESPONSE: ` + the user text. No tool calls. |
 
@@ -147,6 +147,20 @@ scratchpad.
 - The deterministic mock provides delayed reasoning-summary chunks, including a
   reasoning → tool → reasoning → answer script, so browser behavior is testable
   without network access.
+
+## Optional real-model evals
+
+`npm run eval:llm` is an explicit, paid quality lane outside `verify.sh`. It uses the
+canonical registry, production recommendation prompt assembly, and production tool
+schema with a pinned inexpensive Anthropic model. It requires `ANTHROPIC_API_KEY` and
+fails clearly when credentials are absent; deterministic unit/integration/e2e tests
+remain network-free under `MOCK_LLM=1` and never skip based on provider availability.
+
+The initial eval set checks two behaviors that deterministic tests cannot establish
+about a real model: it avoids every wine in `CURRENT VISIBLE RECOMMENDATIONS`, and when
+the persistence tool returns `duplicate=true, retry=true`, it makes a bounded second
+tool call with a different wine. The command exits nonzero on a failed assertion and
+prints the model id, selected wines, and token usage so quality and cost are observable.
 
 ## Acceptance criteria
 
