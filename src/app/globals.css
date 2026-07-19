@@ -58,6 +58,44 @@ textarea {
   text-shadow: 0 0 8px rgb(0 229 255 / 35%);
 }
 
+.bloom-magenta { text-shadow: 0 0 8px rgb(255 46 136 / 35%); }
+.bloom-amber { text-shadow: 0 0 8px rgb(255 176 0 / 35%); }
+.bloom-green { text-shadow: 0 0 8px rgb(63 185 80 / 35%); }
+
+.terminal-input {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--bg);
+  padding: 10px 12px;
+  color: var(--text);
+}
+
+.terminal-button {
+  min-height: 44px;
+  border: 1px solid var(--cyan);
+  background: transparent;
+  padding: 10px 16px;
+  color: var(--cyan);
+  cursor: pointer;
+}
+
+.terminal-button:disabled { cursor: wait; opacity: 0.55; }
+
+.profile-tile {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
 .terminal-panel {
   width: min(620px, calc(100% - 32px));
   border: 1px solid var(--border);
