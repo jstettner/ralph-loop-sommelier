@@ -42,6 +42,20 @@ default `anthropic:claude-opus-4-8`) · Vitest · Playwright.
 6. Work one focused task at a time; commit whenever `./verify.sh` is green with a
    message describing the increment.
 
+## Progress tracking (IMPLEMENTATION_PLAN.md — yours to maintain)
+
+Maintain `IMPLEMENTATION_PLAN.md` at the repo root as your durable working state —
+it must survive context compaction, so keep it current on disk, not in your head:
+
+- **Now / Next / Done**: a prioritized checklist of remaining work (reference spec +
+  AC ids), the item in progress, and completed items (pruned once committed).
+- **Discoveries**: short dated bullets for anything future iterations need — decisions
+  made, deferrals and why, integration gotchas, failing-test diagnoses in progress.
+- Update it as part of every increment (it rides along in the same commit).
+- On a fresh or compacted context: read `IMPLEMENTATION_PLAN.md` + `git log --oneline`
+  first, and run `bash scripts/guard.sh --done` to see AC coverage (N/69) before
+  picking the next task.
+
 ## Operational notes (maintained by the agent — keep brief)
 
 (none yet)
