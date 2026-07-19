@@ -1,23 +1,14 @@
-# deps / build
 node_modules/
 .next/
 out/
-*.tsbuildinfo
-
-# databases
 data/*.db
 data/*.db-*
-
-# env
+test-results/
+playwright-report/
+blob-report/
+coverage/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
-
-# test artifacts
-coverage/
-playwright-report/
-test-results/
-blob-report/
-
-# os
 .DS_Store

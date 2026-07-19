@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #050505;
+  --bg-raised: #0a0a0b;
+  --border: #1a1a1c;
+  --text: #e8e8e3;
+  --text-dim: #8a8a85;
+  --cyan: #00e5ff;
+  --magenta: #ff2e88;
+  --amber: #ffb000;
+  --green: #3fb950;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+}
+
+body {
+  min-width: 360px;
+}
+
+a {
+  color: var(--cyan);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: 3px;
+  box-shadow: 0 0 8px rgb(0 229 255 / 35%);
+}
+
+.scanlines {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgb(255 255 255 / 3%) 0, rgb(255 255 255 / 3%) 1px, transparent 1px, transparent 3px);
+}
+
+.bloom-cyan {
+  text-shadow: 0 0 8px rgb(0 229 255 / 35%);
+}
+
+.terminal-panel {
+  width: min(620px, calc(100% - 32px));
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  padding: clamp(24px, 6vw, 56px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
