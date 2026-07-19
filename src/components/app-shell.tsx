@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import type { Profile } from "@/db/schema";
+import { Barrel, GrapeCluster, Journal, Terminal, WineGlass } from "@/components/icons";
 
 const navigation = [
-  ["/dashboard", "DASHBOARD"], ["/chat", "CHAT"], ["/journal", "JOURNAL"],
-  ["/grapes", "GRAPES"], ["/profile", "PROFILE"],
+  ["/dashboard", "DASHBOARD", Barrel], ["/chat", "CHAT", Terminal], ["/journal", "JOURNAL", Journal],
+  ["/grapes", "GRAPES", GrapeCluster], ["/profile", "PROFILE", WineGlass],
 ] as const;
 
 export function AppShell({ profile, children }: { profile: Profile; children: React.ReactNode }) {
@@ -23,9 +24,9 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
       <aside className="hidden min-h-dvh border-r border-[var(--border)] p-5 md:flex md:flex-col" data-testid="desktop-rail">
         <Link href="/dashboard" className="bloom-cyan mb-10 text-lg text-[var(--cyan)] no-underline">WINE_TRAINER</Link>
         <nav className="flex flex-col gap-2" aria-label="Primary">
-          {navigation.map(([href, label]) => <Link key={href} href={href}
+          {navigation.map(([href, label, Icon]) => <Link key={href} href={href}
             className={`flex min-h-11 items-center px-3 no-underline ${pathname.startsWith(href) ? "bloom-cyan text-[var(--cyan)]" : "text-[var(--text-dim)]"}`}
-            aria-current={pathname.startsWith(href) ? "page" : undefined}>$ {label}</Link>)}
+            aria-current={pathname.startsWith(href) ? "page" : undefined}><Icon size={16} className="mr-2" /> {label}</Link>)}
         </nav>
         <div className="mt-auto space-y-2 border-t border-[var(--border)] pt-5">
           <Link href="/profiles" className={`flex min-h-11 items-center bloom-${profile.color} no-underline`}
@@ -40,9 +41,9 @@ export function AppShell({ profile, children }: { profile: Profile; children: Re
       </header>
       <main className="min-w-0 px-4 pb-24 pt-8 md:px-10 md:pb-10">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-[var(--border)] bg-[var(--bg-raised)] md:hidden" aria-label="Mobile primary" data-testid="bottom-tabs">
-        {navigation.map(([href, label]) => <Link key={href} href={href}
+        {navigation.map(([href, label, Icon]) => <Link key={href} href={href}
           className={`flex min-h-16 flex-col items-center justify-center text-[10px] no-underline ${pathname.startsWith(href) ? "bloom-cyan text-[var(--cyan)]" : "text-[var(--text-dim)]"}`}
-          aria-current={pathname.startsWith(href) ? "page" : undefined}><span aria-hidden="true">■</span>{label}</Link>)}
+          aria-current={pathname.startsWith(href) ? "page" : undefined}><Icon size={16} />{label}</Link>)}
       </nav>
     </div>
   );

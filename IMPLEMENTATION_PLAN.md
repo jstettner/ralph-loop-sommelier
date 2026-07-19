@@ -2,11 +2,11 @@
 
 ## Now
 
-- [ ] Curriculum pages and complete CRT/mobile interface (`specs/09`, `specs/10`; AC-CURR-2–4, AC-UI-1–11)
+- None — completion gate passed.
 
 ## Next
 
-- [ ] Full acceptance audit and `./verify.sh --done`
+- None after the completion audit.
 
 ## Done
 
@@ -15,6 +15,8 @@
 - [x] LLM registry, deterministic mock, memory prompt, tools, chat persistence, and availability providers (`specs/03`, `specs/04`, `specs/08`; AC-LLM-1–5, AC-CHAT-1–6, AC-MEM-3/5, AC-SRCH-1–4, AC-DATA-6)
 - [x] Household journal, structured detail, filters, deletion, and grouped shared tastings (`specs/04`, `specs/05`; AC-CHAT-7–8, AC-JRNL-1–5)
 - [x] Recommendation generation/targeting/lifecycle, household isolation audit, and complete palate view (`specs/01`, `specs/06`, `specs/07`; AC-REC-1–6, AC-DATA-4–5, AC-MEM-4)
+- [x] Curriculum library/deep links and complete CRT/mobile/pixel-icon interface (`specs/09`, `specs/10`; AC-CURR-2–4, AC-UI-1–11)
+- [x] Final acceptance audit: `./verify.sh --done` passes with all 69 criteria covered.
 
 ## Discoveries
 
@@ -28,3 +30,5 @@
 - 2026-07-18: LLM/chat/search increment is green across integration plus Chromium/WebKit journeys; acceptance coverage is now 39/69.
 - 2026-07-18: Journal/shared-tasting increment is green under both browser projects; acceptance coverage is now 46/69.
 - 2026-07-18: Recommendation/isolation/profile increment is green in integration and both browser projects; acceptance coverage is now 55/69.
+- 2026-07-18: Curriculum/UI increment is green across unit, build, Chromium, and WebKit; test references now cover all 69 acceptance criteria pending the completion gate.
+- 2026-07-18: Completion gate passed: typecheck, lint, guard, standalone build, 15 unit tests, 15 integration tests, 8 dual-project e2e runs, and 69/69 AC coverage.

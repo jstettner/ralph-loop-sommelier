@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-REC-1 AC-REC-2 AC-REC-3 AC-REC-6 AC-MEM-4 persisted streaming mock chat", async ({ page }, testInfo) => {
+test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-REC-1 AC-REC-2 AC-REC-3 AC-REC-6 AC-MEM-4 AC-CURR-2 AC-CURR-3 AC-CURR-4 AC-UI-1 AC-UI-2 AC-UI-3 AC-UI-4 AC-UI-8 AC-UI-9 AC-UI-10 core journey", async ({ page }, testInfo) => {
   const email = `chat-${testInfo.project.name}@example.test`;
   await page.goto("/signup");
   await page.getByLabel("EMAIL").fill(email);
@@ -10,18 +10,40 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-RE
   await page.getByRole("button", { name: "CREATE TASTER" }).click();
   await page.getByRole("button", { name: "I'LL FIGURE IT OUT AS I GO" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+  expect(await page.locator("body").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(5, 5, 5)");
+  expect((await page.locator("body").evaluate((element) => getComputedStyle(element).fontFamily)).toLocaleLowerCase()).toContain("mono");
+  await expect(page.getByTestId("scanlines")).toHaveCSS("pointer-events", "none");
+  const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewportWidth);
+  if (testInfo.project.name === "mobile") {
+    await expect(page.getByTestId("bottom-tabs")).toBeVisible();
+    await expect(page.getByTestId("desktop-rail")).toBeHidden();
+    await expect(page.getByTestId("bottom-tabs").getByRole("link")).toHaveCount(5);
+    for (const link of await page.getByTestId("bottom-tabs").getByRole("link").all()) expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  } else {
+    await expect(page.getByTestId("desktop-rail")).toBeVisible();
+    await expect(page.getByTestId("bottom-tabs")).toBeHidden();
+    await expect(page.getByTestId("desktop-rail").getByRole("navigation").getByRole("link")).toHaveCount(5);
+  }
 
   await page.goto("/chat");
+  await expect(page.locator('a[href="/chat"][aria-current="page"]:visible')).toBeVisible();
+  await expect(page.locator('nav:visible svg[data-icon="Terminal"]')).toBeVisible();
   await expect(page.getByLabel("MODEL")).toHaveValue("mock:mock-model");
   await expect(page.getByLabel("MODEL")).toContainText("Mock Model");
   await expect(page.getByLabel("Taylor")).toBeChecked();
   await page.getByRole("button", { name: "START CHAT" }).click();
   await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/);
   await expect(page.getByText("MODEL: mock:mock-model")).toBeVisible();
+  await page.emulateMedia({ reducedMotion: "reduce" });
 
   await page.getByRole("textbox", { name: "Message" }).fill("Teach me simply");
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(page.getByText("▮")).toBeVisible();
+  expect(parseFloat(await page.getByText("▮").evaluate((element) => getComputedStyle(element).animationDuration))).toBeLessThanOrEqual(0.001);
+  await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible();
+  expect((await page.getByRole("button", { name: "Send message" }).boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await expect(page.getByTestId("chat-transcript")).toHaveCSS("overflow-y", "auto");
   await expect(page.getByText("MOCK RESPONSE: Teach me simply")).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
 
@@ -62,6 +84,7 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-RE
   await expect(card).toContainText("Fixture Malbec");
   await expect(card).toContainText("Taylor");
   await expect(card).toContainText("liked");
+  expect(await card.locator(".verdict-liked").evaluate((element) => getComputedStyle(element).color)).toBe("rgb(63, 185, 80)");
   await expect(card.getByLabel("4 out of 5")).toBeVisible();
   await card.getByRole("link", { name: /Fixture Malbec/ }).click();
   await expect(page.getByText("deep purple")).toBeVisible();
@@ -73,4 +96,19 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-RE
   await expect(page.getByText("4 / 5").first()).toBeVisible();
   await expect(page.getByText(/Enjoys bold reds/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "DISLIKED" })).toBeVisible();
+
+  await page.goto("/grapes");
+  const grapeCards = page.locator("ol > li");
+  await expect(grapeCards).toHaveCount(18);
+  await expect(grapeCards.first()).toContainText("Sauvignon Blanc");
+  await expect(grapeCards.last()).toContainText("Zinfandel");
+  await grapeCards.first().getByRole("link").click();
+  await expect(page.getByRole("heading", { name: "Sauvignon Blanc" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "── PROFILE ──" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "── CLASSIC REGIONS ──" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "── WHAT TO TASTE FOR ──" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "── BENCHMARK STYLES ──" })).toBeVisible();
+  await page.getByRole("link", { name: /TASTE THIS GRAPE WITH ME/ }).click();
+  await page.getByRole("button", { name: "START CHAT" }).click();
+  await expect(page.getByText(/I want to taste Sauvignon Blanc/)).toBeVisible();
 });

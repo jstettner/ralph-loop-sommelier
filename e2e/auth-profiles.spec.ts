@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("AC-AUTH-1 AC-AUTH-2 AC-AUTH-4 AC-AUTH-5 AC-PROF-1 AC-PROF-2 AC-PROF-3 AC-MEM-1 AC-MEM-2 household and taster journey", async ({ page }, testInfo) => {
+test("AC-AUTH-1 AC-AUTH-2 AC-AUTH-4 AC-AUTH-5 AC-PROF-1 AC-PROF-2 AC-PROF-3 AC-MEM-1 AC-MEM-2 AC-UI-5 household and taster journey", async ({ page }, testInfo) => {
   const email = `journey-${testInfo.project.name}@example.test`;
   const password = "correct-horse";
 

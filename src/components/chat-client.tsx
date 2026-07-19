@@ -12,7 +12,15 @@ export function ChatClient({ conversationId, initialMessages, participants, mode
   const { messages, sendMessage, status, error } = useChat({ id: conversationId, messages: initialMessages, transport });
   const [input, setInput] = useState(starter ?? "");
   const transcript = useRef<HTMLDivElement>(null);
+  const starterSent = useRef(false);
   useEffect(() => { transcript.current?.scrollTo({ top: transcript.current.scrollHeight, behavior: "smooth" }); }, [messages, status]);
+  useEffect(() => {
+    if (starter && initialMessages.length === 0 && !starterSent.current) {
+      starterSent.current = true;
+      setInput("");
+      void sendMessage({ text: starter });
+    }
+  }, [initialMessages.length, sendMessage, starter]);
   async function submit(event: FormEvent) {
     event.preventDefault();
     const text = input.trim();

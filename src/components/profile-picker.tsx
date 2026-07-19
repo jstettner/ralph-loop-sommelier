@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Profile } from "@/db/schema";
+import { WineGlass } from "@/components/icons";
 
 export function ProfilePicker({ profiles }: { profiles: Profile[] }) {
   const router = useRouter();
@@ -29,7 +30,7 @@ export function ProfilePicker({ profiles }: { profiles: Profile[] }) {
       {profiles.map((profile) => (
         <button key={profile.id} type="button" onClick={() => choose(profile.id)}
           className={`profile-tile bloom-${profile.color}`} style={{ color: `var(--${profile.color})` }}>
-          <span aria-hidden="true">▰</span> {profile.name}
+          <WineGlass color={`var(--${profile.color})`} /> {profile.name}
         </button>
       ))}
       {profiles.length < 4

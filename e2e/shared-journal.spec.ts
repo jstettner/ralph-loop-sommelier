@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("AC-CHAT-7 AC-CHAT-8 AC-JRNL-5 AC-REC-5 shared tasting groups two attributed scores and a joint pick", async ({ page }, testInfo) => {
+test("AC-CHAT-7 AC-CHAT-8 AC-JRNL-5 AC-REC-5 AC-UI-7 shared tasting groups two attributed scores and a joint pick", async ({ page }, testInfo) => {
   await page.goto("/signup");
   await page.getByLabel("EMAIL").fill(`shared-${testInfo.project.name}@example.test`);
   await page.getByLabel("PASSWORD").fill("correct-horse");
@@ -15,6 +15,10 @@ test("AC-CHAT-7 AC-CHAT-8 AC-JRNL-5 AC-REC-5 shared tasting groups two attribute
   await page.getByRole("button", { name: "I'LL FIGURE IT OUT AS I GO" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
+  await page.goto("/profiles");
+  await expect(page.locator('.profile-tile svg[data-icon="WineGlass"]')).toHaveCount(2);
+  await page.getByRole("button", { name: /Sam/ }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
   await page.goto("/chat");
   await expect(page.getByLabel("Sam")).toBeChecked();
   await expect(page.getByLabel("Alex")).not.toBeChecked();
@@ -40,6 +44,7 @@ test("AC-CHAT-7 AC-CHAT-8 AC-JRNL-5 AC-REC-5 shared tasting groups two attribute
   const card = page.getByTestId("journal-card");
   await expect(card).toContainText("Alex");
   await expect(card).toContainText("Sam");
+  await expect(card.locator('svg[data-icon="WineGlass"]')).toHaveCount(2);
   await expect(card.getByLabel("4 out of 5")).toBeVisible();
   await expect(card.getByLabel("2 out of 5")).toBeVisible();
 });
