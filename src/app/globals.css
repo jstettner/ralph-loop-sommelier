@@ -153,14 +153,16 @@ textarea {
   z-index: 95;
   pointer-events: none;
   overflow: hidden;
-  padding: clamp(16px, 4vw, 48px);
+  display: flex;
+  flex-direction: column;
+  padding: clamp(24px, 6vw, 96px);
   /* Dark translucent scrim: clearly dims the app behind so the trace reads, but stays
      non-opaque (the UI is still visible beneath). The ghost "medium opacity" lives on the
      text colour, so the scrim can dim independently of the 45–55% trace text. */
   background-color: rgba(4, 6, 12, 0.68);
   color: rgba(253, 251, 243, 0.52);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: clamp(14px, 1.7vw, 22px);
+  line-height: 1.75;
   letter-spacing: 0.04em;
   text-shadow: 0 0 6px rgb(253 251 243 / 55%), 0 0 16px rgb(253 251 243 / 22%);
   animation: trace-jitter 2.6s steps(1, end) infinite;
@@ -173,14 +175,14 @@ textarea {
 .neural-trace__label {
   letter-spacing: 0.28em;
   opacity: 0.85;
-  margin-bottom: 10px;
+  margin-bottom: clamp(16px, 2.5vh, 40px);
 }
 
 .neural-trace__body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-width: 62ch;
+  gap: clamp(8px, 1.4vh, 20px);
+  max-width: min(1200px, 94vw);
 }
 
 .neural-trace__line {
