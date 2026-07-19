@@ -9,7 +9,7 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 - [ ] Chat history, navigation-safe continuation, and neural-trace auto-scroll are
   specified; implementation has not started (AC-DATA-7–8, AC-LLM-10,
-  AC-CHAT-11–19, AC-UI-13–14).
+  AC-CHAT-11–20, AC-UI-13–14).
 
 ## Next
 
@@ -21,6 +21,8 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
   (AC-CHAT-12–16, AC-UI-13).
 - [ ] Implement bounded neural-trace auto-scroll and long-trace mock coverage
   (AC-LLM-10, AC-UI-14).
+- [ ] Implement composer Meta/Control+Enter submission with multiline, IME, repeat,
+  accessibility, and busy-state coverage (AC-CHAT-20).
 - [ ] Run `./verify.sh --done` and restore complete AC coverage.
 
 ## Done this session
@@ -101,6 +103,9 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Discoveries
 
+- 2026-07-19: Chat send shortcut is Meta+Enter on macOS and Control+Enter elsewhere;
+  plain Enter remains multiline. It shares the SEND-button path and explicitly ignores
+  key repeat and IME composition so it cannot bypass idempotency/busy safeguards.
 - 2026-07-19: Navigation-safe chat continuation uses a server-owned, SQLite-checkpointed
   run rather than relying on the client response stream. Rejoin is idempotent and
   refreshes partial state within one second; 15-second heartbeats and 60-second stale

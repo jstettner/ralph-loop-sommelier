@@ -145,6 +145,18 @@ is created. No folders, pins, unread state, or transcript export are in v1.
 - Assistant text renders progressively as stream deltas arrive; the UI must not wait
   for the completed response before showing text. While a request is submitted or
   streaming, the transcript shows an active indicator and prevents a duplicate send.
+- The multiline composer sends its current message on `Meta+Enter` (`⌘+Enter` on
+  macOS) and `Control+Enter` (Windows/Linux equivalent) when Shift and Alt are not also
+  held. The shortcut calls the exact same validated submit path as the **SEND** button:
+  it trims outer whitespace, preserves internal line breaks, clears only after
+  submission starts, and does nothing for an empty message or while the conversation
+  has an active run. Plain `Enter` (with or without Shift/Alt) inserts a newline and
+  never sends.
+- Shortcut handling ignores key-repeat events and any Enter keydown while an IME is
+  composing, so a held chord or text-composition confirmation cannot submit twice.
+  The textarea exposes `aria-keyshortcuts="Meta+Enter Control+Enter"` and has visible
+  helper text (`⌘/Ctrl+Enter to send · Enter for new line`); the labeled **SEND** button
+  remains available for touch, pointer, switch, and screen-reader users.
 - Provider-visible reasoning-summary parts drive the ephemeral full-screen `NEURAL
   TRACE` overlay defined in specs/10. The overlay may open more than once during one
   response when reasoning is interleaved with tools, and it dissolves as final answer
@@ -280,3 +292,8 @@ run behavior below.
   safe `failed` and `interrupted` terminal states, re-enable sending, expose no raw error,
   reject deletion while truly active, and never leave a conversation permanently busy
   (integration + e2e).
+- **AC-CHAT-20**: `Meta+Enter` and `Control+Enter` each submit one non-empty multiline
+  message through the normal send path, while plain Enter adds a newline, key repeat
+  and IME composition do not submit, and the shortcut cannot bypass empty/busy guards;
+  helper text, `aria-keyshortcuts`, and the SEND button remain available (component +
+  desktop e2e).
