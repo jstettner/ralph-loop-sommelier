@@ -13,6 +13,7 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-RE
   expect(await page.locator("body").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(5, 5, 5)");
   expect((await page.locator("body").evaluate((element) => getComputedStyle(element).fontFamily)).toLocaleLowerCase()).toContain("mono");
   await expect(page.getByTestId("scanlines")).toHaveCSS("pointer-events", "none");
+  expect(parseFloat(await page.getByTestId("scanlines").evaluate((element) => getComputedStyle(element).borderTopLeftRadius))).toBeGreaterThan(0);
   const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewportWidth);
   if (testInfo.project.name === "mobile") {

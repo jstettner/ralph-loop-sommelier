@@ -2,7 +2,7 @@
 
 ## Now
 
-- None — visual polish pass complete and green.
+- None — curved-glass CRT polish complete and green.
 
 ## Next
 
@@ -10,6 +10,7 @@
 
 ## Done
 
+- [x] Curved-glass CRT screen bulge with responsive tube corners, edge refraction, and specular highlight (`specs/10`; AC-UI-2)
 - [x] Architecture and data foundation (`specs/00`, `specs/01`, `specs/09`; AC-ARCH-1–5, AC-DATA-1–3, AC-CURR-1)
 - [x] Household auth, profile CRUD/selection, and onboarding quiz/skip (`specs/02`, `specs/06`, `specs/11`; AC-AUTH-1–5, AC-PROF-1–5, AC-MEM-1–2)
 - [x] LLM registry, deterministic mock, memory prompt, tools, chat persistence, and availability providers (`specs/03`, `specs/04`, `specs/08`; AC-LLM-1–5, AC-CHAT-1–6, AC-MEM-3/5, AC-SRCH-1–4, AC-DATA-6)
