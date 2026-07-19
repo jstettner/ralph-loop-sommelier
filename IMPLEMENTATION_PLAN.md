@@ -2,11 +2,13 @@
 
 ## Now
 
-- None — completion gate passed.
+- Operator-requested visual polish pass (within pinned `specs/10-ui.md`, no spec/test
+  edits): (1) load Geist Mono ✓, (2) design-system CSS discipline in globals.css,
+  (3) pixel-icon redesign + favicon, (4) per-component accent-restraint pass.
 
 ## Next
 
-- None after the completion audit.
+- None after the polish pass.
 
 ## Done
 
@@ -32,3 +34,4 @@
 - 2026-07-18: Recommendation/isolation/profile increment is green in integration and both browser projects; acceptance coverage is now 55/69.
 - 2026-07-18: Curriculum/UI increment is green across unit, build, Chromium, and WebKit; test references now cover all 69 acceptance criteria pending the completion gate.
 - 2026-07-18: Completion gate passed: typecheck, lint, guard, standalone build, 15 unit tests, 15 integration tests, 8 dual-project e2e runs, and 69/69 AC coverage.
+- 2026-07-18: No font was ever actually bundled — globals.css named "JetBrains Mono" without loading it, so every visitor saw their OS mono fallback. Spec 10 mandates Geist Mono via next/font; now loaded from the `geist` package (local woff2, no build-time network, keeps `verify.sh` builds deterministic offline).
