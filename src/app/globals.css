@@ -99,6 +99,10 @@ textarea {
 .cursor-block { animation: cursor-blink 1s steps(1) infinite; }
 @keyframes cursor-blink { 50% { opacity: 0; } }
 
+.verdict-liked { color: var(--green); border-color: var(--green); }
+.verdict-mixed { color: var(--amber); border-color: var(--amber); }
+.verdict-disliked { color: var(--magenta); border-color: var(--magenta); }
+
 .terminal-panel {
   width: min(620px, calc(100% - 32px));
   border: 1px solid var(--border);

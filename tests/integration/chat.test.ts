@@ -2,6 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { POST as postChat } from "../../src/app/api/chat/route";
 import { POST as createConversation } from "../../src/app/api/conversations/route";
+import { GET as listJournal } from "../../src/app/api/journal/route";
+import { DELETE as deleteJournalNote } from "../../src/app/api/journal/[id]/route";
 import { POST as createProfile } from "../../src/app/api/profiles/route";
 import { db } from "../../src/db/client";
 import { conversations, palateProfiles, recommendations, tastingNotes, user, wines } from "../../src/db/schema";
@@ -135,5 +137,39 @@ describe("chat route and attributed tools", () => {
     if (previousMock === undefined) delete process.env.MOCK_LLM; else process.env.MOCK_LLM = previousMock;
     if (previousKey === undefined) delete process.env.TAVILY_API_KEY; else process.env.TAVILY_API_KEY = previousKey;
     expect(result).toEqual({ unavailable: true, results: [] });
+  });
+
+  it("AC-JRNL-3 applies taster, verdict, and style filters together", async () => {
+    const fixture = await makeFixture("journal-filters");
+    await send(fixture, "MOCK:SHARED");
+    const url = new URL("http://localhost:3000/api/journal");
+    url.searchParams.set("taster", fixture.profileIds[0] as string);
+    url.searchParams.set("verdict", "liked");
+    url.searchParams.set("style", "red");
+    const response = await listJournal(new Request(url, { headers: { cookie: fixture.cookie } }));
+    const payload = await response.json() as { notes: Array<{ note: { profileId: string; verdict: string }; wine: { style: string } }> };
+    expect(payload.notes).toHaveLength(1);
+    expect(payload.notes[0]).toMatchObject({ note: { profileId: fixture.profileIds[0], verdict: "liked" }, wine: { style: "red" } });
+    const noMatchUrl = new URL(url); noMatchUrl.searchParams.set("style", "white");
+    const noMatch = await listJournal(new Request(noMatchUrl, { headers: { cookie: fixture.cookie } }));
+    expect(((await noMatch.json()) as { notes: unknown[] }).notes).toHaveLength(0);
+  });
+
+  it("AC-JRNL-4 deletes an owned note and returns 404 without deleting a foreign note", async () => {
+    const owner = await makeFixture("journal-owner", ["Alex"]);
+    const outsider = await makeFixture("journal-outsider", ["Sam"]);
+    await send(owner, "MOCK:TASTING");
+    const note = db.select().from(tastingNotes).where(eq(tastingNotes.householdId, owner.householdId)).get();
+    expect(note).toBeDefined();
+    const foreignAttempt = await deleteJournalNote(new Request(`http://localhost:3000/api/journal/${note?.id}`, {
+      method: "DELETE", headers: { cookie: outsider.cookie },
+    }), { params: Promise.resolve({ id: note?.id ?? "" }) });
+    expect(foreignAttempt.status).toBe(404);
+    expect(db.select().from(tastingNotes).where(eq(tastingNotes.id, note?.id ?? "")).get()).toBeDefined();
+    const ownedDelete = await deleteJournalNote(new Request(`http://localhost:3000/api/journal/${note?.id}`, {
+      method: "DELETE", headers: { cookie: owner.cookie },
+    }), { params: Promise.resolve({ id: note?.id ?? "" }) });
+    expect(ownedDelete.status).toBe(204);
+    expect(db.select().from(tastingNotes).where(eq(tastingNotes.id, note?.id ?? "")).get()).toBeUndefined();
   });
 });
