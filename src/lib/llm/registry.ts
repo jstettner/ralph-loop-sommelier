@@ -1,8 +1,8 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
+import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
+import { createOpenAI, openai } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModel } from "ai";
+import type { LanguageModel, Tool } from "ai";
 import { mockLanguageModel } from "./mock";
 
 export type NativeSearchProvider = "anthropic" | "openai" | "google";
@@ -131,4 +131,15 @@ export function getDefaultModel(): string {
   const available = getAvailableModels();
   const configured = process.env.DEFAULT_MODEL ?? "anthropic:claude-opus-4-8";
   return available.some((model) => model.id === configured) ? configured : available[0]?.id ?? configured;
+}
+
+// Native web search is a provider-defined server tool. Construction lives here (the canonical
+// registry) so no route imports a provider package directly (specs/03, specs/08).
+export function nativeSearchTool(capabilities: ModelCapabilities): Tool | null {
+  switch (capabilities.nativeSearch) {
+    case "anthropic": return anthropic.tools.webSearch_20250305({ maxUses: 3 }) as Tool;
+    case "openai": return openai.tools.webSearch({}) as Tool;
+    case "google": return google.tools.googleSearch({}) as Tool;
+    default: return null;
+  }
 }

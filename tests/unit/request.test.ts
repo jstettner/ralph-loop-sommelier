@@ -2,7 +2,7 @@ import type { ModelMessage } from "ai";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildCacheDiagnostics } from "../../src/lib/llm/diagnostics";
 import type { ModelCapabilities } from "../../src/lib/llm/registry";
-import { applyLatestCacheBreakpoint, buildChatRequest, buildRecommendationRequest } from "../../src/lib/llm/request";
+import { applyLatestCacheBreakpoint, buildChatRequest, buildRecommendationRequest, nativeWebSearchEnabled, resolveChatTooling } from "../../src/lib/llm/request";
 
 const anthropic: ModelCapabilities = { provider: "anthropic", tools: true, reasoning: true, nativeSearch: "anthropic", nativeSearchCombinesWithTools: true, promptCaching: true };
 const openai: ModelCapabilities = { provider: "openai", tools: true, reasoning: true, nativeSearch: "openai", nativeSearchCombinesWithTools: true, promptCaching: false };
@@ -23,7 +23,7 @@ afterEach(() => {
 
 describe("Anthropic prompt caching (AC-LLM-6)", () => {
   it("AC-LLM-6 breaks the cache after the stable prefix and on the latest chat message", () => {
-    const assembled = buildChatRequest({ capabilities: anthropic, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages });
+    const assembled = buildChatRequest({ capabilities: anthropic, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages, nativeSearchActive: false });
     const [stable, dynamic, latest] = assembled.messages;
     expect(stable?.role).toBe("system");
     expect(stable?.content).toContain("sommelier-tutor");
@@ -40,7 +40,7 @@ describe("Anthropic prompt caching (AC-LLM-6)", () => {
   });
 
   it("AC-LLM-6 reapplies the latest-message breakpoint across agent/tool steps", () => {
-    const assembled = buildChatRequest({ capabilities: anthropic, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages });
+    const assembled = buildChatRequest({ capabilities: anthropic, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages, nativeSearchActive: false });
     // A subsequent tool step appends assistant + tool messages, exactly as the chat route reapplies it.
     const stepMessages: ModelMessage[] = [
       ...assembled.messages,
@@ -65,7 +65,7 @@ describe("Anthropic prompt caching (AC-LLM-6)", () => {
 
   it("AC-LLM-6 never sends Anthropic cache options to OpenAI or the mock", () => {
     for (const capabilities of [openai, mock]) {
-      const assembled = buildChatRequest({ capabilities, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages });
+      const assembled = buildChatRequest({ capabilities, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages, nativeSearchActive: false });
       expect(typeof assembled.system).toBe("string");
       expect(assembled.cacheBreakpoints).toBeUndefined();
       expect(assembled.allowSystemInMessages).toBeUndefined();
@@ -88,17 +88,50 @@ describe("Anthropic prompt caching (AC-LLM-6)", () => {
 describe("visible reasoning provider options (AC-LLM-7)", () => {
   it("AC-LLM-7 requests summarized thinking for Anthropic and reasoning summaries for OpenAI", () => {
     process.env.REASONING_EFFORT = "high";
-    const anthropicRequest = buildChatRequest({ capabilities: anthropic, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages });
+    const anthropicRequest = buildChatRequest({ capabilities: anthropic, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages, nativeSearchActive: false });
     expect(anthropicRequest.providerOptions?.anthropic).toEqual({ thinking: { type: "adaptive", display: "summarized" } });
-    const openaiRequest = buildChatRequest({ capabilities: openai, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages });
+    const openaiRequest = buildChatRequest({ capabilities: openai, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages, nativeSearchActive: false });
     expect(openaiRequest.providerOptions?.openai).toEqual({ reasoningEffort: "high", reasoningSummary: "detailed" });
   });
 
   it("AC-LLM-7 sends no reasoning options to the mock or non-reasoning models", () => {
     const google: ModelCapabilities = { provider: "google", tools: true, reasoning: false, nativeSearch: "google", nativeSearchCombinesWithTools: false, promptCaching: false };
     for (const capabilities of [mock, google]) {
-      const assembled = buildChatRequest({ capabilities, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages });
+      const assembled = buildChatRequest({ capabilities, participantMemory: MEMORY, curriculum: CURRICULUM, shared: false, modelMessages: userMessages, nativeSearchActive: false });
       expect(assembled.providerOptions).toBeUndefined();
+    }
+  });
+});
+
+describe("native search tooling (AC-LLM-9)", () => {
+  const google: ModelCapabilities = { provider: "google", tools: true, reasoning: false, nativeSearch: "google", nativeSearchCombinesWithTools: false, promptCaching: false };
+  const compatible: ModelCapabilities = { provider: "openai-compatible", tools: true, reasoning: false, nativeSearch: null, nativeSearchCombinesWithTools: false, promptCaching: false };
+
+  it("AC-LLM-9 attaches native search only for declared models and never drops function tools", () => {
+    expect(resolveChatTooling(anthropic, true)).toEqual({ nativeSearch: "anthropic", twoPass: false, includeFunctionTools: true });
+    // Google can't combine native search with function tools → two-pass, but function tools stay.
+    expect(resolveChatTooling(google, true)).toEqual({ nativeSearch: "google", twoPass: true, includeFunctionTools: true });
+    // Mock and open-weight models get no native search; function tools remain.
+    for (const capabilities of [mock, compatible]) {
+      const plan = resolveChatTooling(capabilities, true);
+      expect(plan.nativeSearch).toBeNull();
+      expect(plan.includeFunctionTools).toBe(true);
+    }
+    // NATIVE_WEB_SEARCH disabled removes native search without touching function tools.
+    expect(resolveChatTooling(anthropic, false)).toEqual({ nativeSearch: null, twoPass: false, includeFunctionTools: true });
+  });
+
+  it("AC-LLM-9 reads NATIVE_WEB_SEARCH=0 as a global native-search disable", () => {
+    const original = process.env.NATIVE_WEB_SEARCH;
+    try {
+      process.env.NATIVE_WEB_SEARCH = "0";
+      expect(nativeWebSearchEnabled()).toBe(false);
+      process.env.NATIVE_WEB_SEARCH = "1";
+      expect(nativeWebSearchEnabled()).toBe(true);
+      delete process.env.NATIVE_WEB_SEARCH;
+      expect(nativeWebSearchEnabled()).toBe(true);
+    } finally {
+      if (original === undefined) delete process.env.NATIVE_WEB_SEARCH; else process.env.NATIVE_WEB_SEARCH = original;
     }
   });
 });

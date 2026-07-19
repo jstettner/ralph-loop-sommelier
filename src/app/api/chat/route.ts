@@ -1,12 +1,12 @@
 import { and, eq } from "drizzle-orm";
-import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from "ai";
+import { convertToModelMessages, generateText, stepCountIs, streamText, type Tool, type UIMessage } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { conversations, messages, type MessagePart } from "@/db/schema";
 import { recordCacheMetrics } from "@/lib/llm/diagnostics";
-import { getModel, getModelCapabilities, ModelUnavailableError } from "@/lib/llm/registry";
-import { applyLatestCacheBreakpoint, buildChatRequest } from "@/lib/llm/request";
+import { getModel, getModelCapabilities, ModelUnavailableError, nativeSearchTool } from "@/lib/llm/registry";
+import { applyLatestCacheBreakpoint, buildChatRequest, nativeWebSearchEnabled, resolveChatTooling } from "@/lib/llm/request";
 import { createChatTools } from "@/lib/llm/tools";
 import { loadMemoryContext } from "@/server/memory";
 import { getHouseholdSession } from "@/server/session";
@@ -47,19 +47,45 @@ export async function POST(request: Request) {
   }
   const memory = loadMemoryContext(session.user.id, conversation.participantIds);
   const capabilities = getModelCapabilities(conversation.model);
+  // Function tools are ALWAYS present. Native provider search is added alongside them when the
+  // exact model supports combining both; otherwise a bounded native pass gathers sources first
+  // and the main generation keeps every function tool (specs/03, specs/08).
+  const tooling = resolveChatTooling(capabilities, nativeWebSearchEnabled());
   const assembled = buildChatRequest({
     capabilities,
     participantMemory: memory.participantMemory,
     curriculum: memory.curriculum,
     shared: conversation.participantIds.length > 1,
     modelMessages: await convertToModelMessages(uiMessages),
+    nativeSearchActive: tooling.nativeSearch !== null,
   });
+  const functionTools = createChatTools({ conversationId: conversation.id, householdId: session.user.id, participantIds: conversation.participantIds });
+  const tools: Record<string, Tool> = { ...functionTools };
+  let system = assembled.system;
+  if (tooling.nativeSearch && !tooling.twoPass) {
+    const native = nativeSearchTool(capabilities);
+    if (native) tools.web_search = native;
+  } else if (tooling.nativeSearch && tooling.twoPass) {
+    const native = nativeSearchTool(capabilities);
+    if (native) {
+      try {
+        const pass = await generateText({
+          model, tools: { web_search: native },
+          system: assembled.system, messages: assembled.messages,
+          providerOptions: assembled.providerOptions, allowSystemInMessages: assembled.allowSystemInMessages,
+        });
+        const lines = pass.sources.flatMap((source) => "url" in source && source.url
+          ? [`- ${("title" in source && source.title) || source.url}: ${source.url}`] : []);
+        if (lines.length) system = `${assembled.system ?? ""}\n\nLive web search results you may cite:\n${lines.join("\n")}`.trim();
+      } catch { /* native search unavailable — proceed with function tools and fallback search */ }
+    }
+  }
   const result = streamText({
     model,
-    tools: createChatTools({ conversationId: conversation.id, householdId: session.user.id, participantIds: conversation.participantIds }),
+    tools,
     stopWhen: stepCountIs(2),
     onFinish: ({ providerMetadata }) => recordCacheMetrics(conversation.model, providerMetadata),
-    system: assembled.system,
+    system,
     messages: assembled.messages,
     providerOptions: assembled.providerOptions,
     allowSystemInMessages: assembled.allowSystemInMessages,

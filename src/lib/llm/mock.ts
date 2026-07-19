@@ -68,7 +68,7 @@ function toolCalls(trigger: MockTrigger, ids: string[]): Array<{ toolName: strin
   if (trigger === "MOCK:PROFILE") return [{ toolName: "update_palate_profile", input: { taster_profile_id: first, tannin: 4, notes: "Enjoys bold reds." } }];
   if (trigger === "MOCK:REC") return [{ toolName: "save_recommendation", input: { for_profile_id: first, wine_name: "Mendoza Malbec", grape: "Malbec", region: "Mendoza", style: "red", price_band: "15_30", reasoning: "Its bold fruit matches this taster's palate." } }];
   if (trigger === "MOCK:JOINTREC") return [{ toolName: "save_recommendation", input: { for_profile_id: null, wine_name: "Cru Beaujolais", grape: "Gamay", region: "Beaujolais", style: "red", price_band: "15_30", reasoning: "Both palates favor bright acidity and gentle tannin." } }];
-  if (trigger === "MOCK:SEARCH") return [{ toolName: "search_wine_availability", input: { query: "buy Mendoza Malbec", location: "New York NY" } }];
+  if (trigger === "MOCK:SEARCH") return [{ toolName: "search_wine_availability", input: { query: "Mendoza Malbec", location: "New York NY" } }];
   return [];
 }
 

@@ -3,7 +3,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { conversations, palateProfiles, profiles, recommendations, tastingNotes, wines } from "@/db/schema";
-import { getSearchProvider } from "@/lib/search";
+import { getSearchProvider, toSearchSources } from "@/lib/search";
 
 const styleSchema = z.enum(["red", "white", "rose", "sparkling", "dessert", "fortified", "orange"]);
 const priceBandSchema = z.enum(["under_15", "15_30", "30_60", "over_60"]);
@@ -108,12 +108,25 @@ export function createChatTools(context: ToolContext) {
         return { saved: true, recommendation_id: id };
       },
     }),
-    search_wine_availability: tool({
-      description: "Search real or deterministic fixture availability for a wine query.", inputSchema: searchAvailabilitySchema,
+    search_web: tool({
+      description: "Provider-neutral fallback web search for current, externally verifiable facts (current wine facts, changing rules or releases, prices) when the selected model has no usable native search.",
+      inputSchema: z.object({ query: z.string().min(1) }),
       execute: async (input) => {
-        const query = [input.query, input.location].filter(Boolean).join(" ");
-        const results = await getSearchProvider().search(query);
-        return results.length ? { unavailable: false, results } : { unavailable: true, results: [] };
+        const provider = getSearchProvider();
+        const results = await provider.search(input.query);
+        const sources = toSearchSources(results, provider.kind === "tavily" ? "tavily" : "fixture", input.query);
+        return sources.length ? { unavailable: false, sources } : { unavailable: true, sources: [] };
+      },
+    }),
+    search_wine_availability: tool({
+      description: "Find where to buy a wine near a specific location. Requires a location — do not guess one.", inputSchema: searchAvailabilitySchema,
+      execute: async (input) => {
+        if (!input.location) return { unavailable: true, needs_location: true, sources: [] };
+        const query = `buy ${input.query} wine shop near ${input.location}`;
+        const provider = getSearchProvider();
+        const results = await provider.search(query);
+        const sources = toSearchSources(results, provider.kind === "tavily" ? "tavily" : "fixture", query);
+        return sources.length ? { unavailable: false, sources } : { unavailable: true, sources: [] };
       },
     }),
   };

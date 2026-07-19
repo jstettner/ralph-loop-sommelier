@@ -1,5 +1,5 @@
 import type { ModelMessage } from "ai";
-import type { ModelCapabilities } from "./registry";
+import type { ModelCapabilities, NativeSearchProvider } from "./registry";
 import { buildDynamicContext, buildStableSystemPrefix } from "./system-prompt";
 
 type ProviderOptions = NonNullable<ModelMessage["providerOptions"]>;
@@ -60,18 +60,44 @@ function stableSystemMessages(stable: string, dynamic: string): ModelMessage[] {
   ];
 }
 
+export interface ChatToolingPlan {
+  /** Native provider search to attach to the request, or null. */
+  nativeSearch: NativeSearchProvider | null;
+  /** Native search is enabled but cannot share one request with function tools → a bounded
+   *  native search pass runs first, then the normal tool-capable generation pass. */
+  twoPass: boolean;
+  /** The application's function tools are ALWAYS present; native search never displaces them. */
+  includeFunctionTools: true;
+}
+
+export function resolveChatTooling(capabilities: ModelCapabilities, nativeWebSearchEnabled: boolean): ChatToolingPlan {
+  const useNative = nativeWebSearchEnabled && capabilities.nativeSearch !== null;
+  return {
+    nativeSearch: useNative ? capabilities.nativeSearch : null,
+    twoPass: useNative && !capabilities.nativeSearchCombinesWithTools,
+    includeFunctionTools: true,
+  };
+}
+
+export function nativeWebSearchEnabled(): boolean {
+  return process.env.NATIVE_WEB_SEARCH !== "0";
+}
+
 export interface ChatRequestParams {
   capabilities: ModelCapabilities;
   participantMemory: string;
   curriculum: string;
   shared: boolean;
   modelMessages: ModelMessage[];
+  /** Whether native web search is active for this exact model, so the dynamic context can
+   *  tell the model which search mechanism it actually has. */
+  nativeSearchActive: boolean;
 }
 
 export function buildChatRequest(params: ChatRequestParams): AssembledRequest {
-  const { capabilities, participantMemory, curriculum, shared, modelMessages } = params;
+  const { capabilities, participantMemory, curriculum, shared, modelMessages, nativeSearchActive } = params;
   const stable = buildStableSystemPrefix(curriculum);
-  const dynamic = buildDynamicContext(participantMemory, shared);
+  const dynamic = buildDynamicContext(participantMemory, shared, nativeSearchActive);
   const providerOptions = reasoningProviderOptions(capabilities);
   if (capabilities.promptCaching) {
     const messages = [...stableSystemMessages(stable, dynamic), ...modelMessages];
@@ -96,7 +122,8 @@ export interface RecommendationRequestParams {
 export function buildRecommendationRequest(params: RecommendationRequestParams): AssembledRequest {
   const { capabilities, participantMemory, curriculum, shared, prompt } = params;
   const stable = buildStableSystemPrefix(curriculum);
-  const dynamic = buildDynamicContext(participantMemory, shared);
+  // Dashboard recommendation generation does no web search — only save_recommendation runs.
+  const dynamic = buildDynamicContext(participantMemory, shared, false);
   const providerOptions = reasoningProviderOptions(capabilities);
   // Single generated request: stable-prefix breakpoint only, no conversation-history breakpoint.
   if (capabilities.promptCaching) {

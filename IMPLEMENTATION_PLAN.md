@@ -12,10 +12,15 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
   breakpoint reapplied inline via applyLatestCacheBreakpoint), reasoning provider options, cache
   diagnostics, mock reasoning + streamed tool-input (AC-LLM-6, AC-LLM-7)
 
+## Done this session (continued)
+
+- [x] Increment C — search routing (resolveSearchRoute) + SearchSource dedup + `search_web` tool +
+  availability needs-location + native-search tooling (resolveChatTooling, two-pass) + dynamic
+  model-aware search-mechanism prompt line (AC-SRCH-5, 6, 7, 8; AC-LLM-9 tooling). AC-SRCH-7 e2e
+  (visible citation links + reload) still to add in Increment D.
+
 ## Now
 
-- [ ] Increment C — search routing (pure resolver) + SearchSource/citation dedup + `search_web`
-  tool + availability needs-location + prompt scoping (AC-SRCH-5, AC-SRCH-6, AC-SRCH-7, AC-SRCH-8)
 - [ ] Increment D — chat UI: progressive text + per-tool lifecycle rows (running→terminal, safe
   summaries, source links, reload restores terminal state) (AC-CHAT-9)
 - [ ] Increment E — NEURAL TRACE overlay (globals.css + component), chat driven by reasoning,

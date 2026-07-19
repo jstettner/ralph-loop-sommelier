@@ -216,10 +216,65 @@ describe("chat route and attributed tools", () => {
     delete process.env.MOCK_LLM;
     delete process.env.TAVILY_API_KEY;
     const search = createChatTools({ conversationId: fixture.conversationId, householdId: fixture.householdId, participantIds: fixture.profileIds }).search_wine_availability;
-    const result = await search.execute?.({ query: "Malbec" }, { toolCallId: "search", messages: [] });
+    const result = await search.execute?.({ query: "Malbec", location: "Brooklyn NY" }, { toolCallId: "search", messages: [] });
     if (previousMock === undefined) delete process.env.MOCK_LLM; else process.env.MOCK_LLM = previousMock;
     if (previousKey === undefined) delete process.env.TAVILY_API_KEY; else process.env.TAVILY_API_KEY = previousKey;
-    expect(result).toEqual({ unavailable: true, results: [] });
+    expect(result).toEqual({ unavailable: true, sources: [] });
+  });
+
+  it("AC-SRCH-6 makes zero network calls in mock mode even with a Tavily key present", async () => {
+    const fixture = await makeFixture("mock-zero-network", ["Alex"]);
+    const previousKey = process.env.TAVILY_API_KEY;
+    process.env.TAVILY_API_KEY = "should-never-be-used"; // MOCK_LLM=1 is set by the test env
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = ((...args: Parameters<typeof originalFetch>) => { fetchCalls += 1; return originalFetch(...args); }) as typeof fetch;
+    try {
+      const tools = createChatTools({ conversationId: fixture.conversationId, householdId: fixture.householdId, participantIds: fixture.profileIds });
+      const web = await tools.search_web.execute?.({ query: "current Barolo release rules" }, { toolCallId: "w", messages: [] }) as { sources: unknown[] };
+      const availability = await tools.search_wine_availability.execute?.({ query: "Malbec", location: "New York NY" }, { toolCallId: "a", messages: [] }) as { sources: unknown[] };
+      expect(web.sources.length).toBeGreaterThan(0);
+      expect(availability.sources.length).toBeGreaterThan(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (previousKey === undefined) delete process.env.TAVILY_API_KEY; else process.env.TAVILY_API_KEY = previousKey;
+    }
+    expect(fetchCalls).toBe(0);
+  });
+
+  it("AC-SRCH-8 asks for a missing location and discloses an unverifiable availability result", async () => {
+    const fixture = await makeFixture("srch-scope", ["Alex"]);
+    const tools = createChatTools({ conversationId: fixture.conversationId, householdId: fixture.householdId, participantIds: fixture.profileIds });
+    // Nearby buying with no location must ask for one rather than guessing.
+    const missing = await tools.search_wine_availability.execute?.({ query: "Malbec" }, { toolCallId: "m", messages: [] });
+    expect(missing).toEqual({ unavailable: true, needs_location: true, sources: [] });
+    // With a location but no configured provider, the result is an explicit unavailable marker
+    // with no fabricated stores, stock, or prices.
+    const previousMock = process.env.MOCK_LLM;
+    const previousKey = process.env.TAVILY_API_KEY;
+    delete process.env.MOCK_LLM;
+    delete process.env.TAVILY_API_KEY;
+    const unverifiable = await createChatTools({ conversationId: fixture.conversationId, householdId: fixture.householdId, participantIds: fixture.profileIds })
+      .search_wine_availability.execute?.({ query: "Malbec", location: "Brooklyn NY" }, { toolCallId: "u", messages: [] });
+    if (previousMock === undefined) delete process.env.MOCK_LLM; else process.env.MOCK_LLM = previousMock;
+    if (previousKey === undefined) delete process.env.TAVILY_API_KEY; else process.env.TAVILY_API_KEY = previousKey;
+    expect(unverifiable).toEqual({ unavailable: true, sources: [] });
+  });
+
+  it("AC-SRCH-7 persists deduplicated safe source parts with server-trusted provenance", async () => {
+    const fixture = await makeFixture("srch-sources", ["Alex"]);
+    await send(fixture, "MOCK:SEARCH");
+    const stored = db.select().from(messages).where(and(eq(messages.conversationId, fixture.conversationId), eq(messages.role, "assistant"))).all();
+    const toolParts = stored.flatMap((message) => message.parts.filter((part) => part.type === "tool-search_wine_availability"));
+    expect(toolParts.length).toBeGreaterThan(0);
+    const output = (toolParts[0] as { output?: { sources?: Array<Record<string, unknown>> } }).output;
+    expect(output?.sources?.length).toBeGreaterThan(0);
+    const source = output?.sources?.[0] ?? {};
+    expect(String(source.url)).toMatch(/^https:\/\//);
+    expect(source.provider).toBe("fixture");
+    expect(typeof source.query).toBe("string");
+    // Only safe, linkable fields persist — no raw provider payload, credentials, or tracking metadata.
+    expect(Object.keys(source).sort()).toEqual(["provider", "query", "snippet", "title", "url"]);
   });
 
   it("AC-JRNL-3 applies taster, verdict, and style filters together", async () => {
