@@ -27,6 +27,10 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Done this session
 
+- [x] Neural-trace final-output handoff: the final assistant text waits for the existing
+  750ms decay to unmount, preventing two animated layers from competing; the trace keeps
+  ownership if stream status settles during decay. Desktop/mobile regression added
+  (AC-CHAT-10, AC-UI-12).
 - [x] Increment A — registry + capabilities (AC-LLM-1 reword, AC-LLM-8, AC-LLM-9 catalog) — committed 031c673
 - [x] Increment B — request assembly: Anthropic ephemeral caching (stable-prefix + latest-message
   breakpoint reapplied inline via applyLatestCacheBreakpoint), reasoning provider options, cache

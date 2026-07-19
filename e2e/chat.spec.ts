@@ -181,7 +181,7 @@ test("AC-CHAT-9 AC-SRCH-7 streamed tool lifecycle rows, safe summaries, and pers
 });
 
 test("AC-CHAT-10 AC-UI-12 neural trace streams reasoning, dissolves at the answer, and stays out of the a11y tree", async ({ page }, testInfo) => {
-  const email = `chat10-${testInfo.project.name}@example.test`;
+  const email = `chat10-${testInfo.project.name}-${crypto.randomUUID()}@example.test`;
   await page.goto("/signup");
   await page.getByLabel("EMAIL").fill(email);
   await page.getByLabel("PASSWORD").fill("correct-horse");
@@ -233,9 +233,15 @@ test("AC-CHAT-10 AC-UI-12 neural trace streams reasoning, dissolves at the answe
   // Interleaved tool activity shows in the trace before the answer takes over.
   await expect(trace).toContainText(/tasting note/i);
 
-  // Dissolves when the final answer begins and unmounts; reasoning is not left in the transcript.
-  await expect(page.getByText("I recorded that tasting after thinking through your acidity history.")).toBeVisible();
+  // Once final output starts, it waits for the trace decay instead of animating underneath it.
+  await expect(page.getByTestId("chat-transcript")).toHaveAttribute("data-final-output", "withheld");
+  await expect(page.getByText("I recorded that tasting after thinking through your acidity history.")).toHaveCount(0);
+
+  // The trace then unmounts and hands the transcript exclusively to the final answer; reasoning
+  // is not left in the permanent transcript.
   await expect(page.getByTestId("neural-trace")).toBeHidden();
+  await expect(page.getByText("I recorded that tasting after thinking through your acidity history.")).toBeVisible();
+  await expect(page.getByTestId("chat-transcript")).toHaveAttribute("data-final-output", "visible");
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
 
   // Absent after reload — the trace never becomes permanent conversation content.

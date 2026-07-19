@@ -48,11 +48,14 @@ export function ChatClient({ conversationId, initialMessages, participants, mode
   // ── NEURAL TRACE overlay (specs/04, specs/10) ──
   // Chat is driven by provider-visible reasoning: the overlay opens on the first reasoning delta
   // and dissolves once the final answer text begins. A no-reasoning turn never opens it.
-  const active = busy ? messages[messages.length - 1] : undefined;
-  const assistant = active && active.role === "assistant" ? active : undefined;
+  // Keep the latest assistant as the trace owner through its decay. `useChat` can become ready
+  // before that timer ends; tying this to `busy` would reveal the final text underneath the fade.
+  const latest = messages[messages.length - 1];
+  const assistant = latest?.role === "assistant" ? latest : undefined;
   const reasoningPresent = assistant?.parts.some((part) => part.type === "reasoning") ?? false;
   const lastPart = assistant?.parts[assistant.parts.length - 1];
   const finalTextBegan = lastPart?.type === "text" && ((lastPart as { text?: string }).text?.trim().length ?? 0) > 0;
+  const finalTextIndex = finalTextBegan && assistant ? assistant.parts.length - 1 : -1;
   const traceOpen = reasoningPresent && !finalTextBegan;
   const traceLines = assistant ? traceLinesFromParts(assistant.parts, participants) : [];
   const traceKey = traceLines.join("\n");
@@ -94,12 +97,17 @@ export function ChatClient({ conversationId, initialMessages, participants, mode
       <div className="mt-2 flex flex-wrap gap-3">{participants.map((profile) => <span key={profile.id} className={`text-xs tracking-[0.1em] bloom-${profile.color}`} style={{ color: `var(--${profile.color})` }}>{profile.name}</span>)}</div>
       <p className="mt-2 text-[11px] tracking-[0.18em] text-[var(--text-dim)]">MODEL: {model}</p>
     </header>
-    <div ref={transcript} className="min-h-0 flex-1 space-y-7 overflow-y-auto py-6" aria-live="polite" data-testid="chat-transcript">
+    <div ref={transcript} className="min-h-0 flex-1 space-y-7 overflow-y-auto py-6" aria-live="polite" data-testid="chat-transcript" data-final-output={finalTextBegan ? (tracePhase === "hidden" ? "visible" : "withheld") : "none"}>
       {messages.length === 0 && <p className="text-[var(--text-dim)]">Tell me what&apos;s in your glass, ask a wine question, or start with what you want to learn.</p>}
       {messages.map((message) => <article key={message.id} data-role={message.role}>
         <p className={message.role === "user" ? "text-[var(--cyan)]" : "text-[var(--text-dim)]"}>{message.role === "user" ? ">" : "somm@cellar:~$"}</p>
         <div className="mt-2 space-y-2 leading-7">{message.parts.map((part, index) => {
-          if (part.type === "text") return <p className="whitespace-pre-wrap" key={index}>{part.text}</p>;
+          // The trace keeps its specified decay, but the final output takes over only after the
+          // overlay has unmounted. This prevents both animated layers from visibly competing.
+          if (part.type === "text") {
+            const waitingForTrace = message.id === assistant?.id && index === finalTextIndex && tracePhase !== "hidden";
+            return waitingForTrace ? null : <p className="whitespace-pre-wrap" key={index}>{part.text}</p>;
+          }
           // Reasoning summaries never enter the permanent transcript — they drive the transient
           // NEURAL TRACE overlay while streaming (specs/04, specs/10).
           if (part.type === "reasoning") return null;
