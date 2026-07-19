@@ -7,12 +7,16 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Now
 
-- [x] Model-aware AC-REC-8, honest retry UI, and the optional real-model eval lane are
-  implemented; final completion audit passed.
+- [ ] Chat-history specification is complete; implementation has not started
+  (specs/01 AC-DATA-7, specs/04 AC-CHAT-11–16, specs/10 AC-UI-13).
 
 ## Next
 
-- [ ] None — all specified work is complete once the final gates remain green.
+- [ ] Implement the chat-history data/API contract and migration (AC-DATA-7,
+  AC-CHAT-11, AC-CHAT-13–15).
+- [ ] Implement responsive desktop/mobile history UI and interaction coverage
+  (AC-CHAT-12–16, AC-UI-13).
+- [ ] Run `./verify.sh --done` and restore complete AC coverage.
 
 ## Done this session
 
@@ -92,6 +96,11 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Discoveries
 
+- 2026-07-19: Chat-history scope is household-wide browse/resume, title-only search,
+  stable cursor pagination, rename, and hard delete with tasting-note preservation.
+  V1 deliberately excludes folders, pins, unread state, full-transcript indexing, and
+  export. Desktop uses a secondary sidebar; mobile uses `/chat/history` so the critical
+  transcript/composer surface stays usable.
 - 2026-07-19: Real-model eval baseline passed on `anthropic:claude-haiku-4-5-20251001`:
   catalog avoidance selected Gamay / Domaine de la Côte instead of the visible Mendoza Malbec
   and Etna Rosso; forced retry changed Morgon / Château de Pizay to Brouilly / Domaine de la

@@ -90,6 +90,11 @@ conversation_id.
 | model | text | `provider:model-id` used |
 | created_at, updated_at | timestamp | |
 
+Index conversations by `(household_id, updated_at, id)` so the household history can
+be read in a stable newest-first order without loading every conversation. `updated_at`
+means the latest persisted user or assistant message (or creation time before the
+first message); renaming a conversation does not move it to the top of history.
+
 ### `messages`
 | Column | Type | Notes |
 |---|---|---|
@@ -98,6 +103,10 @@ conversation_id.
 | role | text enum: user, assistant | user turns are the shared device; speaker attribution is conversational, not structural |
 | parts | json | AI SDK UIMessage parts stored verbatim |
 | created_at | timestamp | |
+
+Deleting a conversation cascades to its messages. `tasting_notes.conversation_id`
+uses `ON DELETE SET NULL`: deleting a transcript must not delete a tasting note or its
+wine, and the journal simply stops offering a source-conversation link for that note.
 
 ### `recommendations`
 | Column | Type | Notes |
@@ -148,3 +157,6 @@ conversation_id.
   `participant_ids` entry) from a different household are rejected (integration).
 - **AC-DATA-6**: Two tasting notes from different profiles against the same wine and
   conversation coexist and are independently retrievable (integration).
+- **AC-DATA-7**: Deleting a conversation deletes its messages but preserves linked
+  tasting notes with `conversation_id` set to null, while deleting or changing no wine,
+  palate-profile, or recommendation data (integration).

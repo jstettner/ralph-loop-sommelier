@@ -72,9 +72,72 @@ Zod-validated.
 
 - Conversations + messages persist per specs/01. Reloading `/chat/[id]` restores full
   history including tool call/result parts, and shows the participant names.
-- New chat button; conversation list (title, participant badges, relative time) in the
-  chat sidebar — household-wide (shared visibility).
-- Title: first user message truncated to 60 chars (set once).
+- Automatic title: first user message truncated to 60 chars (set once); a later explicit
+  rename replaces it without subsequent messages overwriting the chosen title.
+
+## Chat history
+
+History is a household-wide way to find and resume persisted conversations; it is not
+separate per active profile. It includes empty conversations as well as completed and
+in-progress transcripts, because participant/model choices are persisted when a chat
+is created. No folders, pins, unread state, or transcript export are in v1.
+
+### History surface
+
+- Every `/chat` route has a **NEW CHAT** action. On desktop (`md`+), a secondary chat
+  sidebar also shows history while the starter or selected transcript remains in the
+  main pane. On mobile, where that sidebar would crowd the transcript, a labeled
+  **HISTORY** control opens the full-width `/chat/history` route; that route has the
+  same list and a **NEW CHAT** action. Browser Back returns to the prior chat normally.
+- Each row is one conversation and shows its title, participant names in their profile
+  colors, a short last-message preview, and semantic last-activity time. The selected
+  conversation is visibly marked and uses `aria-current="page"`. Empty conversations
+  show `No messages yet` rather than fabricating a preview. The selected chat header
+  shows the same title so a successful rename is visible in both places.
+- Preview text is the first non-empty plain-text part of the newest persisted message
+  that contains text, whitespace-collapsed and truncated for display. If messages exist
+  but none contains safe text, the row shows `Activity recorded`. Tool inputs/results,
+  reasoning, sources, ids, provider metadata, and error payloads are never used as
+  preview text.
+- Rows are ordered by `(updated_at DESC, id DESC)`. A persisted user message advances
+  `updated_at` immediately; the assistant completion advances it again. Renaming does
+  not affect activity order. Relative-time labels may refresh client-side, but the
+  underlying timestamp is exposed accessibly and renders correctly without JavaScript.
+- The empty state says that prior chats will appear here and offers **NEW CHAT**. The
+  history list scrolls independently; it never displaces the sticky mobile composer or
+  causes horizontal page overflow.
+
+### Finding and loading conversations
+
+- A labeled search input filters case-insensitively by conversation title only. It is
+  debounced, reflected in the `q` URL query parameter, and submitting an empty/blank
+  query restores the unfiltered list. Search is deliberately title-only: persisted
+  tool data and potentially sensitive transcript text are not indexed for v1.
+- History is fetched in pages of 25. **LOAD MORE** uses an opaque cursor derived from
+  the last row's `(updated_at, id)` pair, appends without duplicates, and returns no row
+  created or updated after that cursor. Changing `q` discards the old rows and cursor.
+- Selecting a row navigates to `/chat/[conversationId]` and restores the canonical full
+  transcript per AC-CHAT-3; it never creates a new conversation or replays tool calls.
+- `GET /api/conversations?q=<text>&cursor=<opaque>&limit=25` returns only household-
+  scoped summary data needed by the list plus `nextCursor` (null at the end). `limit`
+  is optional, defaults to 25, and is capped at 50. A malformed cursor or invalid limit
+  returns 400 rather than silently changing the query.
+
+### Rename and delete
+
+- Each history row exposes an accessible overflow/actions control. **RENAME** accepts a
+  trimmed title of 1–60 characters. `PATCH /api/conversations/[id]` validates
+  `{ title }`, updates only the title, and does not change `updated_at`.
+- **DELETE CHAT** requires an explicit confirmation naming the conversation. On confirm,
+  `DELETE /api/conversations/[id]` permanently deletes the conversation and messages.
+  Tasting notes and other learned data survive exactly as specified by AC-DATA-7. If
+  the open conversation is deleted, success navigates to `/chat`; otherwise the row is
+  removed in place. A failed mutation retains the row/title and shows an actionable
+  inline error.
+- Rename/delete controls are unavailable for the active conversation while a response
+  is submitted or streaming, preventing deletion underneath an in-flight tool/model
+  run. All list, rename, delete, and detail operations require a session and scope by
+  `household_id`; a conversation belonging to another household returns 404.
 
 ## Live response and tool activity
 
@@ -131,3 +194,21 @@ Zod-validated.
   trace appears on the first reasoning delta, updates progressively around a tool call,
   dissolves when final answer text begins, and stays absent after reload; a no-reasoning
   turn fabricates no trace text (desktop + mobile e2e).
+- **AC-CHAT-11**: History returns only the signed-in household's conversations in stable
+  newest-activity-first pages; title search, cursor continuation, invalid cursors, and
+  the 50-row cap behave as specified without duplicates (integration).
+- **AC-CHAT-12**: Desktop history and the mobile `/chat/history` surface show safe title,
+  participant, preview, and activity summaries; selecting one resumes the exact stored
+  transcript without creating a conversation or replaying a tool (desktop + mobile e2e).
+- **AC-CHAT-13**: Empty history and empty-conversation states are explicit, and a chat's
+  persisted user message moves it to the top before its delayed assistant response
+  completes (integration + e2e).
+- **AC-CHAT-14**: Renaming validates the 1–60-character trimmed title, does not change
+  activity order, updates history and the open chat, and cannot mutate another
+  household's conversation (integration + e2e).
+- **AC-CHAT-15**: Confirmed deletion removes a conversation and transcript, preserves
+  its linked tasting data per AC-DATA-7, redirects when the deleted chat was open, and
+  cannot delete another household's conversation (integration + e2e).
+- **AC-CHAT-16**: History search/actions are keyboard- and screen-reader-usable, the
+  selected row exposes `aria-current`, and the mobile history list neither obscures the
+  composer nor introduces horizontal overflow at 375×667 (component + mobile e2e).
