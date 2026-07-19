@@ -4,10 +4,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { conversations, messages, type MessagePart } from "@/db/schema";
-import { getModel, ModelUnavailableError } from "@/lib/llm/registry";
-import { buildSystemPrompt } from "@/lib/llm/system-prompt";
+import { recordCacheMetrics } from "@/lib/llm/diagnostics";
+import { getModel, getModelCapabilities, ModelUnavailableError } from "@/lib/llm/registry";
+import { applyLatestCacheBreakpoint, buildChatRequest } from "@/lib/llm/request";
 import { createChatTools } from "@/lib/llm/tools";
-import { loadConversationMemory } from "@/server/memory";
+import { loadMemoryContext } from "@/server/memory";
 import { getHouseholdSession } from "@/server/session";
 
 const bodySchema = z.object({
@@ -44,16 +45,32 @@ export async function POST(request: Request) {
       db.update(conversations).set({ title: text.slice(0, 60) || conversation.title, updatedAt: new Date() }).where(eq(conversations.id, conversation.id)).run();
     }
   }
-  const memory = loadConversationMemory(session.user.id, conversation.participantIds);
+  const memory = loadMemoryContext(session.user.id, conversation.participantIds);
+  const capabilities = getModelCapabilities(conversation.model);
+  const assembled = buildChatRequest({
+    capabilities,
+    participantMemory: memory.participantMemory,
+    curriculum: memory.curriculum,
+    shared: conversation.participantIds.length > 1,
+    modelMessages: await convertToModelMessages(uiMessages),
+  });
   const result = streamText({
     model,
-    system: buildSystemPrompt(memory, conversation.participantIds.length > 1),
-    messages: await convertToModelMessages(uiMessages),
     tools: createChatTools({ conversationId: conversation.id, householdId: session.user.id, participantIds: conversation.participantIds }),
     stopWhen: stepCountIs(2),
+    onFinish: ({ providerMetadata }) => recordCacheMetrics(conversation.model, providerMetadata),
+    system: assembled.system,
+    messages: assembled.messages,
+    providerOptions: assembled.providerOptions,
+    allowSystemInMessages: assembled.allowSystemInMessages,
+    prepareStep: assembled.cacheBreakpoints
+      ? ({ messages: stepMessages }) => ({ messages: applyLatestCacheBreakpoint(stepMessages, capabilities) })
+      : undefined,
   });
   return result.toUIMessageStreamResponse({
     originalMessages: uiMessages,
+    sendReasoning: true,
+    sendSources: true,
     generateMessageId: () => crypto.randomUUID(),
     onFinish: ({ responseMessage, isAborted }) => {
       if (!isAborted) {

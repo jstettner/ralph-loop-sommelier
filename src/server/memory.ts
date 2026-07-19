@@ -21,7 +21,9 @@ export type MemoryParticipant = {
 
 export type CurriculumMemory = { name: string; profile: string };
 
-export function assembleMemory(participants: MemoryParticipant[], curriculum: CurriculumMemory[]): string {
+// Dynamic, per-profile context. Changes as tasters record notes, so it lives AFTER the
+// stable cache breakpoint in the assembled prompt (specs/03).
+export function assembleParticipantMemory(participants: MemoryParticipant[]): string {
   const participantSections = participants.map((participant) => {
     const knownDimensions = Object.entries(participant.dimensions).filter((entry): entry is [string, number] => entry[1] !== null);
     const liked = participant.tastings.filter((note) => note.verdict === "liked").map((note) => note.wine);
@@ -38,11 +40,28 @@ export function assembleMemory(participants: MemoryParticipant[], curriculum: Cu
     if (disliked.length) lines.push(`Disliked wines: ${disliked.join(", ")}`);
     return lines.join("\n");
   });
-  const curriculumLines = curriculum.map((grape) => `- ${grape.name}: ${grape.profile.split(/(?<=[.!?])\s/)[0] ?? grape.profile}`);
-  return [`TASTER MEMORY`, participantSections.join("\n\n"), `CURRICULUM`, curriculumLines.join("\n")].filter(Boolean).join("\n\n");
+  return [`TASTER MEMORY`, participantSections.join("\n\n")].filter(Boolean).join("\n\n");
 }
 
-export function loadConversationMemory(householdId: string, participantIds: string[]): string {
+// Stable, seed-derived curriculum. Identical across households, so it can anchor the
+// cached system prefix (specs/03).
+export function assembleCurriculum(curriculum: CurriculumMemory[]): string {
+  const curriculumLines = curriculum.map((grape) => `- ${grape.name}: ${grape.profile.split(/(?<=[.!?])\s/)[0] ?? grape.profile}`);
+  return [`CURRICULUM`, curriculumLines.join("\n")].filter(Boolean).join("\n\n");
+}
+
+export function assembleMemory(participants: MemoryParticipant[], curriculum: CurriculumMemory[]): string {
+  return [assembleParticipantMemory(participants), assembleCurriculum(curriculum)].filter(Boolean).join("\n\n");
+}
+
+export interface MemoryContext {
+  /** Dynamic per-profile memory — lives after the ephemeral cache breakpoint. */
+  participantMemory: string;
+  /** Seeded curriculum — part of the stable, cacheable system prefix. */
+  curriculum: string;
+}
+
+export function loadMemoryContext(householdId: string, participantIds: string[]): MemoryContext {
   const participantMemory = participantIds.flatMap((profileId): MemoryParticipant[] => {
     const profile = db.select().from(profiles).where(and(eq(profiles.id, profileId), eq(profiles.householdId, householdId))).get();
     if (!profile) return [];
@@ -62,5 +81,5 @@ export function loadConversationMemory(householdId: string, participantIds: stri
     }];
   });
   const curriculum = db.select({ name: grapes.name, profile: grapes.profile }).from(grapes).orderBy(grapes.orderIndex).all();
-  return assembleMemory(participantMemory, curriculum);
+  return { participantMemory: assembleParticipantMemory(participantMemory), curriculum: assembleCurriculum(curriculum) };
 }

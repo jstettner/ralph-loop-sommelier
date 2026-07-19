@@ -12,7 +12,7 @@ import { GET as getRecommendations } from "../../src/app/api/recommendations/rou
 import { PATCH as patchRecommendation } from "../../src/app/api/recommendations/[id]/route";
 import { POST as createProfile } from "../../src/app/api/profiles/route";
 import { db } from "../../src/db/client";
-import { conversations, palateProfiles, recommendations, tastingNotes, user, wines } from "../../src/db/schema";
+import { conversations, messages, palateProfiles, recommendations, tastingNotes, user, wines } from "../../src/db/schema";
 import { auth } from "../../src/lib/auth";
 import { MOCK_SCRIPTS } from "../../src/lib/llm/mock";
 import { createChatTools } from "../../src/lib/llm/tools";
@@ -66,6 +66,20 @@ function streamedText(stream: string): string {
     const event = JSON.parse(line.slice(6)) as { type?: unknown; delta?: unknown };
     return event.type === "text-delta" && typeof event.delta === "string" ? [event.delta] : [];
   }).join("");
+}
+
+function streamedParts(stream: string): { order: string[]; reasoning: string; text: string } {
+  const order: string[] = [];
+  let reasoning = "";
+  let text = "";
+  for (const line of stream.split("\n")) {
+    if (!line.startsWith("data: {") || line === "data: [DONE]") continue;
+    const event = JSON.parse(line.slice(6)) as { type?: string; delta?: string };
+    if (event.type) order.push(event.type);
+    if (event.type === "reasoning-delta" && typeof event.delta === "string") reasoning += event.delta;
+    if (event.type === "text-delta" && typeof event.delta === "string") text += event.delta;
+  }
+  return { order, reasoning, text };
 }
 
 afterAll(() => {
@@ -130,6 +144,29 @@ describe("chat route and attributed tools", () => {
     const notes = db.select().from(tastingNotes).where(eq(tastingNotes.householdId, fixture.householdId)).all();
     expect(notes).toHaveLength(1);
     expect(db.select().from(wines).where(eq(wines.id, notes[0]?.wineId ?? "")).get()?.name).toBe("Gemma Gamay");
+  });
+
+  it("AC-LLM-7 streams delayed interleaved reasoning and keeps protocol parts through the tool loop", async () => {
+    const fixture = await makeFixture("reasoning-interleave", ["Alex"]);
+    const stream = await send(fixture, "MOCK:REASON");
+    const parts = streamedParts(stream);
+    // Two interleaved reasoning summaries — one before the tool call, one after — plus the answer.
+    expect(parts.reasoning).toContain("acidity and tannin history");
+    expect(parts.reasoning).toContain("benchmark");
+    expect(parts.text).toContain("I recorded that tasting after thinking through your acidity history.");
+    const firstReasoning = parts.order.indexOf("reasoning-delta");
+    const firstTool = parts.order.findIndex((type) => type.startsWith("tool-"));
+    const firstText = parts.order.indexOf("text-delta");
+    expect(firstReasoning).toBeGreaterThanOrEqual(0);
+    expect(firstReasoning).toBeLessThan(firstTool);
+    expect(firstTool).toBeLessThan(firstText);
+    // The summary is never labelled as a raw internal scratchpad.
+    expect(stream.toLowerCase()).not.toContain("chain of thought");
+    // Protocol parts persist for model/tool continuity: the stored assistant turn keeps reasoning + tool parts.
+    const stored = db.select().from(messages).where(and(eq(messages.conversationId, fixture.conversationId), eq(messages.role, "assistant"))).all();
+    const partTypes = stored.flatMap((message) => message.parts.map((part) => part.type));
+    expect(partTypes).toContain("reasoning");
+    expect(partTypes.some((type) => type.startsWith("tool-"))).toBe(true);
   });
 
   it("AC-CHAT-5 and AC-DATA-5 reject non-participant attribution and foreign-household conversation context", async () => {

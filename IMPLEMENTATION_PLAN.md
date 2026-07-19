@@ -5,11 +5,15 @@ Operator expanded specs 00/03/04/07/08/10 (committed as its own `Spec:` commit).
 deterministic mock is enriched so every behavior is provable offline. Real code paths
 (caching, provider options, native-search routing) are covered by pure unit tests.
 
+## Done this session
+
+- [x] Increment A — registry + capabilities (AC-LLM-1 reword, AC-LLM-8, AC-LLM-9 catalog) — committed 031c673
+- [x] Increment B — request assembly: Anthropic ephemeral caching (stable-prefix + latest-message
+  breakpoint reapplied inline via applyLatestCacheBreakpoint), reasoning provider options, cache
+  diagnostics, mock reasoning + streamed tool-input (AC-LLM-6, AC-LLM-7)
+
 ## Now
 
-- [ ] Increment B — request assembly: Anthropic ephemeral caching (stable-prefix + latest-message
-  breakpoint via prepareStep), reasoning provider options, cache diagnostics, mock reasoning +
-  streamed tool-input (AC-LLM-6, AC-LLM-7)
 - [ ] Increment C — search routing (pure resolver) + SearchSource/citation dedup + `search_web`
   tool + availability needs-location + prompt scoping (AC-SRCH-5, AC-SRCH-6, AC-SRCH-7, AC-SRCH-8)
 - [ ] Increment D — chat UI: progressive text + per-tool lifecycle rows (running→terminal, safe
