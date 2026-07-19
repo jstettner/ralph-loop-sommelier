@@ -81,6 +81,7 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-RE
   await expect(page.getByTestId("neural-trace")).toBeVisible();
   await expect(page.getByTestId("neural-trace")).toBeHidden();
   await expect(recommendationCards).toHaveCount(1);
+  await expect(page.locator("article").filter({ hasText: "Etna Rosso" })).toHaveCount(1);
   await recommendationCards.first().getByRole("button", { name: "dismissed" }).click();
   await expect(recommendationCards).toHaveCount(0);
   await generateRecommendation.click();

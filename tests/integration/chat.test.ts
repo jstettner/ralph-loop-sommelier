@@ -16,6 +16,7 @@ import { conversations, messages, palateProfiles, recommendations, tastingNotes,
 import { auth } from "../../src/lib/auth";
 import { MOCK_SCRIPTS } from "../../src/lib/llm/mock";
 import { createChatTools } from "../../src/lib/llm/tools";
+import { loadMemoryContext } from "../../src/server/memory";
 
 type Fixture = { householdId: string; cookie: string; profileIds: string[]; conversationId: string };
 const householdIds: string[] = [];
@@ -352,7 +353,14 @@ describe("chat route and attributed tools", () => {
       reasoning: "The same wine offered for the table.",
     }, { toolCallId: "duplicate", messages: [] });
     expect(first).toMatchObject({ saved: true });
-    expect(duplicate).toMatchObject({ saved: false, duplicate: true, recommendation_id: (first as { recommendation_id: string }).recommendation_id });
+    const memory = loadMemoryContext(fixture.householdId, [fixture.profileIds[0] as string]);
+    expect(memory.participantMemory).toContain("CURRENT VISIBLE RECOMMENDATIONS");
+    expect(memory.participantMemory).toContain("- Château Test | producer: Domaine Example");
+    expect(duplicate).toMatchObject({
+      saved: false, duplicate: true, retry: true,
+      recommendation_id: (first as { recommendation_id: string }).recommendation_id,
+      message: expect.stringMatching(/choose a different wine/i),
+    });
     let rows = db.select().from(recommendations).where(eq(recommendations.householdId, fixture.householdId)).all();
     expect(rows).toHaveLength(1);
 

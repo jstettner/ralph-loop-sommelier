@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   const result = streamText({
     model,
     tools,
-    stopWhen: stepCountIs(2),
+    stopWhen: stepCountIs(3),
     onFinish: ({ providerMetadata }) => recordCacheMetrics(conversation.model, providerMetadata),
     system,
     messages: assembled.messages,

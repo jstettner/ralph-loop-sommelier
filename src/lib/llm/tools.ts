@@ -38,6 +38,8 @@ export const saveRecommendationSchema = z.object({
   reasoning: z.string().min(1),
 });
 
+export const SAVE_RECOMMENDATION_DESCRIPTION = "Save a concrete recommendation for one participant or jointly for the household. Never repeat a wine in CURRENT VISIBLE RECOMMENDATIONS. If this returns duplicate=true and retry=true, choose a different wine name + producer and call this tool again.";
+
 export const searchAvailabilitySchema = z.object({ query: z.string().min(1), location: z.string().min(1).optional() });
 
 export type ToolContext = { conversationId?: string; householdId: string; participantIds: string[]; recommendationSource?: "chat" | "dashboard" };
@@ -99,7 +101,7 @@ export function createChatTools(context: ToolContext) {
       },
     }),
     save_recommendation: tool({
-      description: "Save a concrete recommendation for one participant or jointly for the household. Reuse an existing visible recommendation for the same normalized wine name and producer rather than creating a duplicate.", inputSchema: saveRecommendationSchema,
+      description: SAVE_RECOMMENDATION_DESCRIPTION, inputSchema: saveRecommendationSchema,
       execute: async (input) => {
         validateContext(context, input.for_profile_id);
         const existing = findVisibleRecommendation(context.householdId, {
@@ -107,7 +109,13 @@ export function createChatTools(context: ToolContext) {
           producer: input.producer,
         });
         if (existing) {
-          return { saved: false, duplicate: true, recommendation_id: existing.id };
+          return {
+            saved: false,
+            duplicate: true,
+            retry: true,
+            recommendation_id: existing.id,
+            message: "That wine is already visible. Choose a different wine name + producer and try again.",
+          };
         }
         const id = crypto.randomUUID();
         db.insert(recommendations).values({

@@ -7,11 +7,12 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Now
 
-- [x] AC-REC-8 implementation and completion audit finished.
+- [x] Model-aware AC-REC-8, honest retry UI, and the optional real-model eval lane are
+  implemented; final completion audit passed.
 
 ## Next
 
-- [ ] None — all specified work is complete.
+- [ ] None — all specified work is complete once the final gates remain green.
 
 ## Done this session
 
@@ -44,6 +45,12 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
   identity and lifecycle behavior; desktop/mobile e2e proves repeated generation stays at one card
   (AC-REC-8). The e2e launcher now correctly runs the pinned standalone output with copied static
   assets instead of unsupported `next start`.
+- [x] Increment G — model-aware alternatives: dynamic household-wide visible recommendation
+  catalog, explicit avoid/retry guidance, 3-step bounded tool loops, retry-signaling persistence
+  fallback, context-aware deterministic profile/joint candidates, and desktop/mobile proof that
+  repeated generation adds Etna Rosso/Rioja Reserva instead of no-oping (AC-REC-8). Added an
+  opt-in canonical-registry `npm run eval:llm` lane pinned to Haiku 4.5 for catalog avoidance +
+  duplicate retry; the first live run passed both cases.
 
 ## Done — prior goal complete
 
@@ -53,6 +60,8 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 - [x] `./verify.sh` and `./verify.sh --done` pass after Increment F: typecheck, lint,
   guard, standalone build, 32 unit tests, 21 integration tests, and 14 desktop/mobile
   Playwright tests all green; **all 82 acceptance criteria are covered**.
+- [x] Increment G live eval, `./verify.sh`, and `./verify.sh --done` pass with 35 unit,
+  21 integration, and 14 desktop/mobile e2e tests; all 82 ACs remain covered.
 
 ## Key design decisions (from spec + API recon)
 
@@ -83,6 +92,17 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Discoveries
 
+- 2026-07-19: Real-model eval baseline passed on `anthropic:claude-haiku-4-5-20251001`:
+  catalog avoidance selected Gamay / Domaine de la Côte instead of the visible Mendoza Malbec
+  and Etna Rosso; forced retry changed Morgon / Château de Pizay to Brouilly / Domaine de la
+  Madone. Usage: 9,144 input + 1,230 output tokens (~$0.015 at current list pricing).
+- 2026-07-19: The registry's eager static import of the AI SDK test mock caused standalone eval
+  processes to initialize Vitest internals. A lazy mock proxy now preserves the one canonical
+  registry and specified test utility while keeping real-provider processes free of test imports.
+- 2026-07-19: Operator clarified that AC-REC-8 must prevent repeats at model-selection
+  time, not merely suppress duplicate persistence/output. The current memory contains
+  tasting history but no recommendation catalog, so repeated mock/real requests can
+  no-op behind the safety check; the new contract requires a distinct saved alternative.
 - 2026-07-19: Operator approved AC-REC-8 as intentionally incomplete. Duplicate
   recommendation identity is normalized wine name + producer across all visible
   recommendation sections; implementation now reuses visible matches while allowing a wine to

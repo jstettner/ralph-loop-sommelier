@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { grapes, palateProfiles, profiles, tastingNotes, wines } from "@/db/schema";
+import { listVisibleRecommendations } from "@/server/recommendations";
 
 export type MemoryTasting = {
   wine: string;
@@ -20,6 +21,7 @@ export type MemoryParticipant = {
 };
 
 export type CurriculumMemory = { name: string; profile: string };
+export type MemoryRecommendation = { wineName: string; producer: string | null };
 
 // Dynamic, per-profile context. Changes as tasters record notes, so it lives AFTER the
 // stable cache breakpoint in the assembled prompt (specs/03).
@@ -41,6 +43,17 @@ export function assembleParticipantMemory(participants: MemoryParticipant[]): st
     return lines.join("\n");
   });
   return [`TASTER MEMORY`, participantSections.join("\n\n")].filter(Boolean).join("\n\n");
+}
+
+export function assembleRecommendationMemory(recommendations: MemoryRecommendation[]): string {
+  const display = (value: string) => value.normalize("NFKC").trim().replace(/\s+/gu, " ");
+  const rows = recommendations.map((recommendation) =>
+    `- ${display(recommendation.wineName)} | producer: ${recommendation.producer ? display(recommendation.producer) : "(none)"}`);
+  return [
+    "CURRENT VISIBLE RECOMMENDATIONS",
+    "Never recommend the same normalized wine name + producer combination again; choose a useful alternative.",
+    rows.length ? rows.join("\n") : "- none",
+  ].join("\n");
 }
 
 // Stable, seed-derived curriculum. Identical across households, so it can anchor the
@@ -81,5 +94,9 @@ export function loadMemoryContext(householdId: string, participantIds: string[])
     }];
   });
   const curriculum = db.select({ name: grapes.name, profile: grapes.profile }).from(grapes).orderBy(grapes.orderIndex).all();
-  return { participantMemory: assembleParticipantMemory(participantMemory), curriculum: assembleCurriculum(curriculum) };
+  const recommendationMemory = assembleRecommendationMemory(listVisibleRecommendations(householdId));
+  return {
+    participantMemory: [assembleParticipantMemory(participantMemory), recommendationMemory].join("\n\n"),
+    curriculum: assembleCurriculum(curriculum),
+  };
 }

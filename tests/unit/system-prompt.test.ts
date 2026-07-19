@@ -20,4 +20,12 @@ describe("search scoping in the system prompt (AC-SRCH-8)", () => {
     expect(fallback).toMatch(/no built-in web search/i);
     expect(fallback).toMatch(/search_web/);
   });
+
+  it("AC-REC-8 tells the model to avoid visible picks and retry a rejected duplicate", () => {
+    const stable = buildStableSystemPrefix("CURRICULUM");
+    expect(stable).toContain("CURRENT VISIBLE RECOMMENDATIONS");
+    expect(stable).toMatch(/never repeat a normalized wine name \+ producer/i);
+    expect(stable).toMatch(/duplicate=true and retry=true/i);
+    expect(stable).toMatch(/call it again with a different wine/i);
+  });
 });

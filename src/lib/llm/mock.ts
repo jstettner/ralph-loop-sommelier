@@ -6,7 +6,7 @@ export const MOCK_SCRIPTS = {
   "MOCK:SHARED": "I recorded separate notes for both tasters—your different reactions are useful palate data.",
   "MOCK:PROFILE": "I updated your palate profile with that preference for bold reds.",
   "MOCK:REC": "I saved a Mendoza Malbec as your next-bottle recommendation.",
-  "MOCK:JOINTREC": "I saved a bottle for both of you based on the overlap in your palates.",
+  "MOCK:JOINTREC": "I saved a bottle for both of you: Cru Beaujolais, based on the overlap in your palates.",
   "MOCK:SEARCH": "Astor Wines appears in the availability results for Mendoza Malbec.",
   "MOCK:REASON": "I recorded that tasting after thinking through your acidity history.",
   "MOCK:LIVE": "Logged it — that Malbec is in your journal now.",
@@ -44,6 +44,17 @@ function participants(options: LanguageModelV2CallOptions): string[] {
   return [...system.matchAll(/^PARTICIPANT ([^ |]+) \|/gm)].map((match) => match[1]).filter((id): id is string => Boolean(id));
 }
 
+function visibleRecommendationIdentities(options: LanguageModelV2CallOptions): Set<string> {
+  const system = options.prompt.filter((message) => message.role === "system").map(textFromMessage).join("\n");
+  const section = system.split("CURRENT VISIBLE RECOMMENDATIONS").at(-1) ?? "";
+  return new Set([...section.matchAll(/^- (.+?) \| producer: (.+)$/gm)].map((match) => {
+    const wine = (match[1] ?? "").normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
+    const rawProducer = match[2] === "(none)" ? "" : (match[2] ?? "");
+    const producer = rawProducer.normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("en-US");
+    return `${wine}\u0000${producer}`;
+  }));
+}
+
 function triggerFor(text: string): MockTrigger | null {
   return (Object.keys(MOCK_SCRIPTS) as MockTrigger[]).find((trigger) => text.includes(trigger)) ?? null;
 }
@@ -65,7 +76,42 @@ function tastingArgs(profileId: string, sharedSecond = false) {
   };
 }
 
-function toolCalls(trigger: MockTrigger, ids: string[]): Array<{ toolName: string; input: unknown }> {
+type RecommendationCandidate = {
+  wine_name: string;
+  grape: string;
+  region: string;
+  style: "red" | "white";
+  price_band: "15_30" | "30_60";
+  reasoning: string;
+};
+
+const PROFILE_CANDIDATES: RecommendationCandidate[] = [
+  { wine_name: "Mendoza Malbec", grape: "Malbec", region: "Mendoza", style: "red", price_band: "15_30", reasoning: "Its bold fruit matches this taster's palate." },
+  { wine_name: "Etna Rosso", grape: "Nerello Mascalese", region: "Etna", style: "red", price_band: "30_60", reasoning: "Its bright acidity offers a fresh contrast without excessive weight." },
+  { wine_name: "Wachau Grüner Veltliner", grape: "Grüner Veltliner", region: "Wachau", style: "white", price_band: "15_30", reasoning: "Its vivid acidity and savory edge make a useful next contrast." },
+];
+
+const JOINT_CANDIDATES: RecommendationCandidate[] = [
+  { wine_name: "Cru Beaujolais", grape: "Gamay", region: "Beaujolais", style: "red", price_band: "15_30", reasoning: "Both palates favor bright acidity and gentle tannin." },
+  { wine_name: "Rioja Reserva", grape: "Tempranillo", region: "Rioja", style: "red", price_band: "30_60", reasoning: "Its balanced fruit, acidity, and polished tannin offer common ground." },
+  { wine_name: "Loire Cabernet Franc", grape: "Cabernet Franc", region: "Loire", style: "red", price_band: "15_30", reasoning: "Its freshness and moderate structure bridge both palates." },
+];
+
+function recommendationCandidate(trigger: "MOCK:REC" | "MOCK:JOINTREC", options: LanguageModelV2CallOptions): RecommendationCandidate {
+  const existing = visibleRecommendationIdentities(options);
+  const candidates = trigger === "MOCK:REC" ? PROFILE_CANDIDATES : JOINT_CANDIDATES;
+  return candidates.find((candidate) => !existing.has(`${candidate.wine_name.normalize("NFKC").toLocaleLowerCase("en-US")}\u0000`))
+    ?? {
+      wine_name: `Cellar Discovery ${existing.size + 1}`,
+      grape: "Gamay",
+      region: "Beaujolais",
+      style: "red",
+      price_band: "15_30",
+      reasoning: "A deterministic alternative after the current recommendation catalog was exhausted.",
+    };
+}
+
+function toolCalls(trigger: MockTrigger, ids: string[], options: LanguageModelV2CallOptions): Array<{ toolName: string; input: unknown }> {
   const first = ids[0] ?? "missing-participant";
   if (trigger === "MOCK:TASTING") return [{ toolName: "record_tasting_note", input: tastingArgs(first) }];
   if (trigger === "MOCK:REASON") return [{ toolName: "record_tasting_note", input: tastingArgs(first) }];
@@ -74,10 +120,18 @@ function toolCalls(trigger: MockTrigger, ids: string[]): Array<{ toolName: strin
     ? [{ toolName: "record_tasting_note", input: tastingArgs(first) }, { toolName: "record_tasting_note", input: tastingArgs(ids[1] as string, true) }]
     : [{ toolName: "record_tasting_note", input: tastingArgs(first) }];
   if (trigger === "MOCK:PROFILE") return [{ toolName: "update_palate_profile", input: { taster_profile_id: first, tannin: 4, notes: "Enjoys bold reds." } }];
-  if (trigger === "MOCK:REC") return [{ toolName: "save_recommendation", input: { for_profile_id: first, wine_name: "Mendoza Malbec", grape: "Malbec", region: "Mendoza", style: "red", price_band: "15_30", reasoning: "Its bold fruit matches this taster's palate." } }];
-  if (trigger === "MOCK:JOINTREC") return [{ toolName: "save_recommendation", input: { for_profile_id: null, wine_name: "Cru Beaujolais", grape: "Gamay", region: "Beaujolais", style: "red", price_band: "15_30", reasoning: "Both palates favor bright acidity and gentle tannin." } }];
+  if (trigger === "MOCK:REC" || trigger === "MOCK:JOINTREC") {
+    const candidate = recommendationCandidate(trigger, options);
+    return [{ toolName: "save_recommendation", input: { for_profile_id: trigger === "MOCK:REC" ? first : null, ...candidate } }];
+  }
   if (trigger === "MOCK:SEARCH") return [{ toolName: "search_wine_availability", input: { query: "Mendoza Malbec", location: "New York NY" } }];
   return [];
+}
+
+function responseText(trigger: MockTrigger, options: LanguageModelV2CallOptions): string {
+  if (trigger === "MOCK:REC") return `I saved a ${recommendationCandidate(trigger, options).wine_name} as your next-bottle recommendation.`;
+  if (trigger === "MOCK:JOINTREC") return `I saved a bottle for both of you: ${recommendationCandidate(trigger, options).wine_name}, based on the overlap in your palates.`;
+  return MOCK_SCRIPTS[trigger];
 }
 
 function reasoningChunks(id: string, deltas: string[]): LanguageModelV2StreamPart[] {
@@ -116,7 +170,7 @@ async function stream(options: LanguageModelV2CallOptions) {
   const latest = latestUserText(options);
   const trigger = triggerFor(latest);
   const hasToolResult = hasToolResultAfterLatestUser(options);
-  const calls = trigger ? toolCalls(trigger, participants(options)) : [];
+  const calls = trigger ? toolCalls(trigger, participants(options), options) : [];
   const reasoning = trigger ? REASONING_SUMMARIES[trigger] : undefined;
   const preface = trigger ? PREFACES[trigger] : undefined;
   const chunks: LanguageModelV2StreamPart[] = [{ type: "stream-start", warnings: [] }];
@@ -133,7 +187,7 @@ async function stream(options: LanguageModelV2CallOptions) {
   } else {
     // Final step: a second reasoning block (interleaved) then the answer text.
     if (reasoning) chunks.push(...reasoningChunks("mock-reason-2", reasoning.step2));
-    chunks.push(...textChunks(trigger ? MOCK_SCRIPTS[trigger] : `MOCK RESPONSE: ${latest}`));
+    chunks.push(...textChunks(trigger ? responseText(trigger, options) : `MOCK RESPONSE: ${latest}`));
     chunks.push({ type: "finish", finishReason: "stop", usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 } });
   }
   return { stream: simulateReadableStream({ chunks, chunkDelayInMs: 25 }) };
@@ -143,7 +197,7 @@ async function generate(options: LanguageModelV2CallOptions) {
   const latest = latestUserText(options);
   const trigger = triggerFor(latest);
   const hasToolResult = hasToolResultAfterLatestUser(options);
-  const calls = trigger ? toolCalls(trigger, participants(options)) : [];
+  const calls = trigger ? toolCalls(trigger, participants(options), options) : [];
   if (trigger && calls.length && !hasToolResult) {
     return {
       content: calls.map((call, index) => ({ type: "tool-call" as const, toolCallId: `mock-tool-${index + 1}`, toolName: call.toolName, input: JSON.stringify(call.input) })),
@@ -151,7 +205,7 @@ async function generate(options: LanguageModelV2CallOptions) {
     };
   }
   return {
-    content: [{ type: "text" as const, text: trigger ? MOCK_SCRIPTS[trigger] : `MOCK RESPONSE: ${latest}` }],
+    content: [{ type: "text" as const, text: trigger ? responseText(trigger, options) : `MOCK RESPONSE: ${latest}` }],
     finishReason: "stop" as const, usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 }, warnings: [],
   };
 }

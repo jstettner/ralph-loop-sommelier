@@ -63,6 +63,15 @@ export function toolStatus(part: ToolPart): "running" | "completed" | "failed" {
   return part.state === "output-error" ? "failed" : part.state === "output-available" ? "completed" : "running";
 }
 
+export function toolLabel(part: ToolPart): string {
+  const name = toolName(part);
+  const status = toolStatus(part);
+  if (name === "save_recommendation" && status === "completed" && part.output?.duplicate === true && part.output.retry === true) {
+    return "Recommendation already queued — choosing another";
+  }
+  return (status === "completed" ? LABELS_DONE[name] : LABELS[name]) ?? name.replaceAll("_", " ");
+}
+
 export function sourcesFrom(part: ToolPart): SourceLink[] {
   const raw = part.state === "output-available" ? (part.output?.sources as SourceLink[] | undefined) : undefined;
   return Array.isArray(raw) ? raw.filter((source) => typeof source.url === "string") : [];

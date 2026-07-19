@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mockLanguageModel } from "../../src/lib/llm/mock";
 import { getAvailableModels, getDefaultModel, getModel, getModelCapabilities, ModelUnavailableError } from "../../src/lib/llm/registry";
 
 const original = { ...process.env };
@@ -38,7 +37,7 @@ describe("model registry", () => {
       capabilities: { provider: "mock", tools: true, reasoning: false, nativeSearch: null, nativeSearchCombinesWithTools: false, promptCaching: false },
     }]);
     expect(getDefaultModel()).toBe("mock:mock-model");
-    expect(getModel("anthropic:ignored")).toBe(mockLanguageModel);
+    expect(getModel("anthropic:ignored")).toMatchObject({ provider: "mock", modelId: "mock-model" });
     expect(getModelCapabilities("anthropic:claude-opus-4-8").nativeSearch).toBeNull();
   });
 
@@ -70,6 +69,7 @@ describe("model registry", () => {
   it("AC-LLM-9 declares native search only for catalogued hosted models, never mock or open-weight", () => {
     delete process.env.MOCK_LLM;
     expect(getModelCapabilities("anthropic:claude-opus-4-8").nativeSearch).toBe("anthropic");
+    expect(getModelCapabilities("anthropic:claude-haiku-4-5-20251001")).toMatchObject({ tools: true, promptCaching: true });
     expect(getModelCapabilities("openai:gpt-5.2").nativeSearch).toBe("openai");
     expect(getModelCapabilities("google:gemini-3.5-flash").nativeSearch).toBe("google");
     expect(getModelCapabilities("google:gemini-3.5-flash").nativeSearchCombinesWithTools).toBe(false);

@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   // or transcript (specs/07). The client refreshes the dashboard once the stream completes.
   const result = streamText({
     model: getModel(modelId),
-    tools: { save_recommendation: tools.save_recommendation }, stopWhen: stepCountIs(2),
+    tools: { save_recommendation: tools.save_recommendation }, stopWhen: stepCountIs(3),
     onFinish: ({ providerMetadata }) => recordCacheMetrics(modelId, providerMetadata),
     system: assembled.system,
     messages: assembled.messages,

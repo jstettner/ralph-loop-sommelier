@@ -5,12 +5,12 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Profile } from "@/db/schema";
 import { NeuralTrace, traceLinesFromParts } from "@/components/neural-trace";
-import { isToolPart, LABELS, LABELS_DONE, sourcesFrom, toolDetail, toolName, toolStatus, type ToolPart } from "@/lib/tool-summary";
+import { isToolPart, sourcesFrom, toolDetail, toolLabel, toolName, toolStatus, type ToolPart } from "@/lib/tool-summary";
 
 function ToolActivity({ part, participants }: { part: ToolPart; participants: Profile[] }) {
   const name = toolName(part);
   const status = toolStatus(part);
-  const label = (status === "completed" ? LABELS_DONE[name] : LABELS[name]) ?? name.replaceAll("_", " ");
+  const label = toolLabel(part);
   const detail = toolDetail(name, part.input, participants);
   const sources = sourcesFrom(part);
   const glyph = status === "completed" ? "✓" : status === "failed" ? "✗" : "▸";

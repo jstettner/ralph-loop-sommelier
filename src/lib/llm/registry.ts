@@ -3,7 +3,6 @@ import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel, Tool } from "ai";
-import { mockLanguageModel } from "./mock";
 
 export type NativeSearchProvider = "anthropic" | "openai" | "google";
 
@@ -66,11 +65,29 @@ const providerFactories = {
 
 type ProviderName = keyof typeof providerFactories;
 
+// Do not load the AI SDK's test-only mock utilities in real provider processes (including
+// opt-in evals). Mock mode resolves this proxy, which lazily delegates on its first model call.
+const lazyMockLanguageModel: LanguageModel = {
+  specificationVersion: "v2",
+  provider: "mock",
+  modelId: "mock-model",
+  supportedUrls: {},
+  async doGenerate(options) {
+    const { mockLanguageModel } = await import("./mock");
+    return mockLanguageModel.doGenerate(options);
+  },
+  async doStream(options) {
+    const { mockLanguageModel } = await import("./mock");
+    return mockLanguageModel.doStream(options);
+  },
+};
+
 // Conservative exact-model capability catalog. Enhancement capabilities (reasoning,
 // nativeSearch, caching) are opt-in per exact id and never inferred from a provider name.
 const CAPABILITY_CATALOG: Record<string, Omit<ModelCapabilities, "provider">> = {
   "anthropic:claude-opus-4-8": { tools: true, reasoning: true, nativeSearch: "anthropic", nativeSearchCombinesWithTools: true, promptCaching: true },
   "anthropic:claude-sonnet-4-6": { tools: true, reasoning: true, nativeSearch: "anthropic", nativeSearchCombinesWithTools: true, promptCaching: true },
+  "anthropic:claude-haiku-4-5-20251001": { tools: true, reasoning: false, nativeSearch: "anthropic", nativeSearchCombinesWithTools: true, promptCaching: true },
   "openai:gpt-5.2": { tools: true, reasoning: true, nativeSearch: "openai", nativeSearchCombinesWithTools: true, promptCaching: false },
   // Gemini grounding cannot be combined with function calling in one request → two-pass route.
   "google:gemini-3.5-flash": { tools: true, reasoning: false, nativeSearch: "google", nativeSearchCombinesWithTools: false, promptCaching: false },
@@ -117,7 +134,7 @@ export function getAvailableModels(): ModelInfo[] {
 }
 
 export function getModel(id: string): LanguageModel {
-  if (process.env.MOCK_LLM === "1") return mockLanguageModel;
+  if (process.env.MOCK_LLM === "1") return lazyMockLanguageModel;
   if (!getAvailableModels().some((model) => model.id === id)) throw new ModelUnavailableError(id);
   const parsed = splitId(id);
   if (!parsed) throw new ModelUnavailableError(id);
