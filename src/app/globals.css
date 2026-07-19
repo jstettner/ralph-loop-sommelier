@@ -10,6 +10,7 @@
   --magenta: #ff2e88;
   --amber: #ffb000;
   --green: #3fb950;
+  --border-bright: #33333a;
 }
 
 * {
@@ -33,6 +34,12 @@ body {
 
 a {
   color: var(--cyan);
+  text-underline-offset: 3px;
+  transition: color 0.15s ease, text-shadow 0.15s ease;
+}
+
+a:hover {
+  text-shadow: 0 0 8px rgb(0 229 255 / 35%);
 }
 
 button,
@@ -44,7 +51,7 @@ textarea {
 
 :focus-visible {
   outline: 1px solid var(--cyan);
-  outline-offset: 3px;
+  outline-offset: 2px;
   box-shadow: 0 0 8px rgb(0 229 255 / 35%);
 }
 
@@ -64,26 +71,104 @@ textarea {
 .bloom-amber { text-shadow: 0 0 8px rgb(255 176 0 / 35%); }
 .bloom-green { text-shadow: 0 0 8px rgb(63 185 80 / 35%); }
 
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+}
+
+.prompt-line {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
 .terminal-input {
   min-height: 44px;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 0;
-  background: var(--bg);
+  background: var(--bg-raised);
   padding: 10px 12px;
   color: var(--text);
+  font-size: 16px;
+  transition: border-color 0.15s ease;
+}
+
+.terminal-input:hover {
+  border-color: var(--border-bright);
+}
+
+.terminal-input:focus-visible {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgb(0 229 255 / 25%);
 }
 
 .terminal-button {
   min-height: 44px;
-  border: 1px solid var(--cyan);
+  border: 1px solid var(--border-bright);
   background: transparent;
-  padding: 10px 16px;
-  color: var(--cyan);
+  padding: 10px 20px;
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.1em;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.terminal-button:disabled { cursor: wait; opacity: 0.55; }
+.terminal-button:hover:not(:disabled) {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+  text-shadow: none;
+}
+
+.terminal-button:disabled { cursor: wait; opacity: 0.4; }
+
+.terminal-button--primary {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.terminal-button--primary:hover:not(:disabled) {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  color: var(--bg);
+  box-shadow: 0 0 12px rgb(0 229 255 / 30%);
+}
+
+.terminal-button--danger {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+
+.terminal-button--danger:hover:not(:disabled) {
+  background: var(--magenta);
+  border-color: var(--magenta);
+  color: var(--bg);
+}
 
 .profile-tile {
   display: flex;
@@ -96,6 +181,12 @@ textarea {
   padding: 16px;
   font: inherit;
   cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.profile-tile:hover {
+  border-color: currentColor;
+  box-shadow: 0 0 12px 0 color-mix(in srgb, currentColor 20%, transparent);
 }
 
 .cursor-block { animation: cursor-blink 1s steps(1) infinite; }
