@@ -78,7 +78,7 @@ describe("authenticated household profile API", () => {
     expect(lastDelete.status).toBe(409);
   });
 
-  it("AC-PROF-5 hides another household's profile ids for reads and writes", async () => {
+  it("AC-PROF-5 and AC-DATA-4 hide another household's profile ids for reads and writes", async () => {
     const owner = await signUp("owner");
     const outsider = await signUp("outsider");
     const ownedId = await profileId(await postProfile(owner, "Owner"));

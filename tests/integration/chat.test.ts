@@ -2,8 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { POST as postChat } from "../../src/app/api/chat/route";
 import { POST as createConversation } from "../../src/app/api/conversations/route";
+import { GET as getConversation } from "../../src/app/api/conversations/[id]/route";
 import { GET as listJournal } from "../../src/app/api/journal/route";
 import { DELETE as deleteJournalNote } from "../../src/app/api/journal/[id]/route";
+import { GET as getRecommendations } from "../../src/app/api/recommendations/route";
+import { PATCH as patchRecommendation } from "../../src/app/api/recommendations/[id]/route";
 import { POST as createProfile } from "../../src/app/api/profiles/route";
 import { db } from "../../src/db/client";
 import { conversations, palateProfiles, recommendations, tastingNotes, user, wines } from "../../src/db/schema";
@@ -91,7 +94,7 @@ describe("chat route and attributed tools", () => {
     expect(db.select().from(recommendations).where(eq(recommendations.householdId, fixture.householdId)).all()).toHaveLength(2);
   });
 
-  it("AC-CHAT-5 rejects non-participant attribution and foreign-household conversation context", async () => {
+  it("AC-CHAT-5 and AC-DATA-5 reject non-participant attribution and foreign-household conversation context", async () => {
     const fixture = await makeFixture("tool-scope", ["Alex"]);
     const outsider = await makeFixture("tool-outsider", ["Morgan"]);
     const tools = createChatTools({ conversationId: fixture.conversationId, householdId: fixture.householdId, participantIds: fixture.profileIds });
@@ -100,6 +103,11 @@ describe("chat route and attributed tools", () => {
     const foreignTools = createChatTools({ conversationId: fixture.conversationId, householdId: outsider.householdId, participantIds: fixture.profileIds });
     await expect(foreignTools.update_palate_profile.execute?.({ taster_profile_id: fixture.profileIds[0] as string, tannin: 4 }, { toolCallId: "foreign", messages: [] }))
       .rejects.toThrow(/Conversation not found/);
+    const foreignParticipantConversation = await createConversation(new Request("http://localhost:3000/api/conversations", {
+      method: "POST", headers: { cookie: outsider.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ participantIds: fixture.profileIds, model: "mock:mock-model" }),
+    }));
+    expect(foreignParticipantConversation.status).toBe(404);
   });
 
   it("AC-CHAT-6 and AC-DATA-6 shared notes coexist with distinct attribution while one wine is upserted", async () => {
@@ -155,7 +163,7 @@ describe("chat route and attributed tools", () => {
     expect(((await noMatch.json()) as { notes: unknown[] }).notes).toHaveLength(0);
   });
 
-  it("AC-JRNL-4 deletes an owned note and returns 404 without deleting a foreign note", async () => {
+  it("AC-JRNL-4 and AC-DATA-4 delete an owned note and return 404 without deleting a foreign note", async () => {
     const owner = await makeFixture("journal-owner", ["Alex"]);
     const outsider = await makeFixture("journal-outsider", ["Sam"]);
     await send(owner, "MOCK:TASTING");
@@ -171,5 +179,26 @@ describe("chat route and attributed tools", () => {
     }), { params: Promise.resolve({ id: note?.id ?? "" }) });
     expect(ownedDelete.status).toBe(204);
     expect(db.select().from(tastingNotes).where(eq(tastingNotes.id, note?.id ?? "")).get()).toBeUndefined();
+  });
+
+  it("AC-REC-3 AC-REC-4 and AC-DATA-4 scope recommendation lifecycle and conversation reads to their household", async () => {
+    const owner = await makeFixture("recommendation-owner", ["Alex"]);
+    const outsider = await makeFixture("recommendation-outsider", ["Sam"]);
+    await send(owner, "MOCK:REC");
+    const recommendation = db.select().from(recommendations).where(eq(recommendations.householdId, owner.householdId)).get();
+    expect(recommendation).toBeDefined();
+    const foreignPatch = await patchRecommendation(new Request(`http://localhost:3000/api/recommendations/${recommendation?.id}`, {
+      method: "PATCH", headers: { cookie: outsider.cookie, "content-type": "application/json" }, body: JSON.stringify({ status: "dismissed" }),
+    }), { params: Promise.resolve({ id: recommendation?.id ?? "" }) });
+    expect(foreignPatch.status).toBe(404);
+    const ownPatch = await patchRecommendation(new Request(`http://localhost:3000/api/recommendations/${recommendation?.id}`, {
+      method: "PATCH", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ status: "dismissed" }),
+    }), { params: Promise.resolve({ id: recommendation?.id ?? "" }) });
+    expect(ownPatch.status).toBe(200);
+    expect(db.select().from(recommendations).where(eq(recommendations.id, recommendation?.id ?? "")).get()?.status).toBe("dismissed");
+    const outsiderList = await getRecommendations(new Request("http://localhost:3000/api/recommendations?target=all", { headers: { cookie: outsider.cookie } }));
+    expect(((await outsiderList.json()) as { recommendations: unknown[] }).recommendations).toHaveLength(0);
+    const foreignConversation = await getConversation(new Request(`http://localhost:3000/api/conversations/${owner.conversationId}`, { headers: { cookie: outsider.cookie } }), { params: Promise.resolve({ id: owner.conversationId }) });
+    expect(foreignConversation.status).toBe(404);
   });
 });

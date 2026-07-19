@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 persisted streaming mock chat", async ({ page }, testInfo) => {
+test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-REC-1 AC-REC-2 AC-REC-3 AC-REC-6 AC-MEM-4 persisted streaming mock chat", async ({ page }, testInfo) => {
   const email = `chat-${testInfo.project.name}@example.test`;
   await page.goto("/signup");
   await page.getByLabel("EMAIL").fill(email);
@@ -40,6 +40,23 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 persi
   await page.getByRole("button", { name: "Send message" }).click();
   await expect(page.getByText(/Astor Wines appears/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  await page.getByRole("textbox", { name: "Message" }).fill("MOCK:REC");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByText(/saved a Mendoza Malbec/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  await page.getByRole("textbox", { name: "Message" }).fill("MOCK:PROFILE");
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByText(/updated your palate profile/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  await page.goto("/dashboard");
+  const recommendationCards = page.locator("article").filter({ hasText: "Mendoza Malbec" });
+  await expect(recommendationCards).toHaveCount(1);
+  await expect(page.getByText("── FOR THE TABLE ──")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "SUGGEST A BOTTLE FOR ALL OF US" })).toHaveCount(0);
+  await page.getByRole("button", { name: "SUGGEST MY NEXT BOTTLE" }).click();
+  await expect(recommendationCards).toHaveCount(2);
+  await recommendationCards.first().getByRole("button", { name: "dismissed" }).click();
+  await expect(recommendationCards).toHaveCount(1);
   await page.goto("/journal");
   const card = page.getByTestId("journal-card");
   await expect(card).toContainText("Fixture Malbec");
@@ -53,4 +70,7 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 persi
   await expect(page.getByRole("link", { name: "VIEW SOURCE CONVERSATION →" })).toBeVisible();
   await page.goto("/profile");
   await expect(page.getByText("Fixture Malbec", { exact: true })).toBeVisible();
+  await expect(page.getByText("4 / 5").first()).toBeVisible();
+  await expect(page.getByText(/Enjoys bold reds/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "DISLIKED" })).toBeVisible();
 });

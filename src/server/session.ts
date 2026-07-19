@@ -28,7 +28,15 @@ export function activeProfileCookieOptions(session: HouseholdSession) {
 
 export async function getActiveProfile(session: HouseholdSession) {
   const store = await cookies();
-  const raw = store.get(ACTIVE_PROFILE_COOKIE)?.value;
+  return resolveActiveProfileValue(session, store.get(ACTIVE_PROFILE_COOKIE)?.value);
+}
+
+export function getActiveProfileFromRequest(session: HouseholdSession, request: Request) {
+  const raw = request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${ACTIVE_PROFILE_COOKIE}=`))?.slice(ACTIVE_PROFILE_COOKIE.length + 1);
+  return resolveActiveProfileValue(session, raw ? decodeURIComponent(raw) : undefined);
+}
+
+function resolveActiveProfileValue(session: HouseholdSession, raw: string | undefined) {
   const prefix = `${session.session.id}:`;
   if (!raw?.startsWith(prefix)) return null;
   const profileId = raw.slice(prefix.length);

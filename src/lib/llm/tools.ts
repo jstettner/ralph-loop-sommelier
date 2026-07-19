@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { conversations, palateProfiles, recommendations, tastingNotes, wines } from "@/db/schema";
+import { conversations, palateProfiles, profiles, recommendations, tastingNotes, wines } from "@/db/schema";
 import { getSearchProvider } from "@/lib/search";
 
 const styleSchema = z.enum(["red", "white", "rose", "sparkling", "dessert", "fortified", "orange"]);
@@ -37,17 +37,23 @@ export const saveRecommendationSchema = z.object({
 
 export const searchAvailabilitySchema = z.object({ query: z.string().min(1), location: z.string().min(1).optional() });
 
-export type ToolContext = { conversationId: string; householdId: string; participantIds: string[] };
+export type ToolContext = { conversationId?: string; householdId: string; participantIds: string[]; recommendationSource?: "chat" | "dashboard" };
 
 function validateContext(context: ToolContext, attributedProfile?: string | null): void {
-  const conversation = db.select().from(conversations).where(and(
-    eq(conversations.id, context.conversationId), eq(conversations.householdId, context.householdId),
-  )).get();
-  if (!conversation) throw new Error("Conversation not found for this household.");
-  if (conversation.participantIds.some((id) => !context.participantIds.includes(id)) || context.participantIds.some((id) => !conversation.participantIds.includes(id))) {
-    throw new Error("Conversation participant context does not match.");
+  if (context.conversationId) {
+    const conversation = db.select().from(conversations).where(and(
+      eq(conversations.id, context.conversationId), eq(conversations.householdId, context.householdId),
+    )).get();
+    if (!conversation) throw new Error("Conversation not found for this household.");
+    if (conversation.participantIds.some((id) => !context.participantIds.includes(id)) || context.participantIds.some((id) => !conversation.participantIds.includes(id))) {
+      throw new Error("Conversation participant context does not match.");
+    }
+  } else {
+    const householdProfiles = db.select({ id: profiles.id }).from(profiles).where(eq(profiles.householdId, context.householdId)).all();
+    const validIds = new Set(householdProfiles.map((profile) => profile.id));
+    if (context.participantIds.some((id) => !validIds.has(id))) throw new Error("Participant not found for this household.");
   }
-  if (attributedProfile && !conversation.participantIds.includes(attributedProfile)) throw new Error("The attributed profile is not a conversation participant.");
+  if (attributedProfile && !context.participantIds.includes(attributedProfile)) throw new Error("The attributed profile is not a conversation participant.");
 }
 
 export function createChatTools(context: ToolContext) {
@@ -97,7 +103,7 @@ export function createChatTools(context: ToolContext) {
         db.insert(recommendations).values({
           id, householdId: context.householdId, profileId: input.for_profile_id,
           wineName: input.wine_name, producer: input.producer, grape: input.grape, region: input.region,
-          style: input.style, priceBand: input.price_band, reasoning: input.reasoning, source: "chat",
+          style: input.style, priceBand: input.price_band, reasoning: input.reasoning, source: context.recommendationSource ?? "chat",
         }).run();
         return { saved: true, recommendation_id: id };
       },

@@ -32,6 +32,11 @@ function triggerFor(text: string): MockTrigger | null {
   return (Object.keys(MOCK_SCRIPTS) as MockTrigger[]).find((trigger) => text.includes(trigger)) ?? null;
 }
 
+function hasToolResultAfterLatestUser(options: LanguageModelV2CallOptions): boolean {
+  const latestUserIndex = options.prompt.findLastIndex((message) => message.role === "user");
+  return options.prompt.slice(latestUserIndex + 1).some((message) => message.role === "tool");
+}
+
 function tastingArgs(profileId: string, sharedSecond = false) {
   return {
     taster_profile_id: profileId,
@@ -60,7 +65,7 @@ function toolCalls(trigger: MockTrigger, ids: string[]): Array<{ toolName: strin
 async function stream(options: LanguageModelV2CallOptions) {
   const latest = latestUserText(options);
   const trigger = triggerFor(latest);
-  const hasToolResult = options.prompt.some((message) => message.role === "tool");
+  const hasToolResult = hasToolResultAfterLatestUser(options);
   const calls = trigger ? toolCalls(trigger, participants(options)) : [];
   let chunks: LanguageModelV2StreamPart[];
   if (trigger && calls.length && !hasToolResult) {
@@ -83,4 +88,21 @@ async function stream(options: LanguageModelV2CallOptions) {
   return { stream: simulateReadableStream({ chunks, chunkDelayInMs: 25 }) };
 }
 
-export const mockLanguageModel = new MockLanguageModelV2({ provider: "mock", modelId: "mock-model", doStream: stream });
+async function generate(options: LanguageModelV2CallOptions) {
+  const latest = latestUserText(options);
+  const trigger = triggerFor(latest);
+  const hasToolResult = hasToolResultAfterLatestUser(options);
+  const calls = trigger ? toolCalls(trigger, participants(options)) : [];
+  if (trigger && calls.length && !hasToolResult) {
+    return {
+      content: calls.map((call, index) => ({ type: "tool-call" as const, toolCallId: `mock-tool-${index + 1}`, toolName: call.toolName, input: JSON.stringify(call.input) })),
+      finishReason: "tool-calls" as const, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, warnings: [],
+    };
+  }
+  return {
+    content: [{ type: "text" as const, text: trigger ? MOCK_SCRIPTS[trigger] : `MOCK RESPONSE: ${latest}` }],
+    finishReason: "stop" as const, usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 }, warnings: [],
+  };
+}
+
+export const mockLanguageModel = new MockLanguageModelV2({ provider: "mock", modelId: "mock-model", doStream: stream, doGenerate: generate });
