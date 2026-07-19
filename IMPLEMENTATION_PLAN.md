@@ -16,13 +16,14 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 - [x] Increment C — search routing (resolveSearchRoute) + SearchSource dedup + `search_web` tool +
   availability needs-location + native-search tooling (resolveChatTooling, two-pass) + dynamic
-  model-aware search-mechanism prompt line (AC-SRCH-5, 6, 7, 8; AC-LLM-9 tooling). AC-SRCH-7 e2e
-  (visible citation links + reload) still to add in Increment D.
+  model-aware search-mechanism prompt line (AC-SRCH-5, 6, 7, 8; AC-LLM-9 tooling).
+- [x] Increment D — chat UI: progressive text, per-tool lifecycle rows (running→terminal, safe
+  summaries, no raw JSON/ids), citation source links persisted across reload (AC-CHAT-9, AC-SRCH-7
+  e2e). Mock gained MOCK:LIVE (pre-tool preface + long tool-input for observable running); global
+  delay 25ms to keep server load low; fixed a pre-existing logout redirect race in auth e2e.
 
 ## Now
 
-- [ ] Increment D — chat UI: progressive text + per-tool lifecycle rows (running→terminal, safe
-  summaries, source links, reload restores terminal state) (AC-CHAT-9)
 - [ ] Increment E — NEURAL TRACE overlay (globals.css + component), chat driven by reasoning,
   dashboard generate → streamText UI stream consumed client-side driving overlay + card refresh
   without reload (AC-CHAT-10, AC-REC-7, AC-UI-12)

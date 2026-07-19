@@ -9,6 +9,7 @@ export const MOCK_SCRIPTS = {
   "MOCK:JOINTREC": "I saved a bottle for both of you based on the overlap in your palates.",
   "MOCK:SEARCH": "Astor Wines appears in the availability results for Mendoza Malbec.",
   "MOCK:REASON": "I recorded that tasting after thinking through your acidity history.",
+  "MOCK:LIVE": "Logged it — that Malbec is in your journal now.",
 } as const;
 
 type MockTrigger = keyof typeof MOCK_SCRIPTS;
@@ -19,6 +20,12 @@ const REASONING_SUMMARIES: Partial<Record<MockTrigger, { step1: string[]; step2:
     step1: ["Weighing this taster's ", "acidity and tannin history ", "to frame the note…"],
     step2: ["Comparing it to benchmark ", "styles before I answer…"],
   },
+};
+
+// A short assistant preface streamed BEFORE the tool call, proving partial text is visible while
+// a tool row is still running (specs/04, AC-CHAT-9).
+const PREFACES: Partial<Record<MockTrigger, string>> = {
+  "MOCK:LIVE": "Working on your tasting note… ",
 };
 
 function textFromMessage(message: LanguageModelV2Message): string {
@@ -62,6 +69,7 @@ function toolCalls(trigger: MockTrigger, ids: string[]): Array<{ toolName: strin
   const first = ids[0] ?? "missing-participant";
   if (trigger === "MOCK:TASTING") return [{ toolName: "record_tasting_note", input: tastingArgs(first) }];
   if (trigger === "MOCK:REASON") return [{ toolName: "record_tasting_note", input: tastingArgs(first) }];
+  if (trigger === "MOCK:LIVE") return [{ toolName: "record_tasting_note", input: tastingArgs(first) }];
   if (trigger === "MOCK:SHARED") return ids.length >= 2
     ? [{ toolName: "record_tasting_note", input: tastingArgs(first) }, { toolName: "record_tasting_note", input: tastingArgs(ids[1] as string, true) }]
     : [{ toolName: "record_tasting_note", input: tastingArgs(first) }];
@@ -77,28 +85,30 @@ function reasoningChunks(id: string, deltas: string[]): LanguageModelV2StreamPar
 }
 
 // Stream tool input as start → deltas → end → call so the UI can render a live "running"
-// row before the tool executes (specs/04, AC-CHAT-9).
-function toolCallChunks(index: number, call: { toolName: string; input: unknown }): LanguageModelV2StreamPart[] {
+// row before the tool executes (specs/04, AC-CHAT-9). Split into several deltas so the
+// running window is comfortably observable.
+function toolCallChunks(index: number, call: { toolName: string; input: unknown }, parts = 4): LanguageModelV2StreamPart[] {
   const id = `mock-tool-${index + 1}`;
   const input = JSON.stringify(call.input);
-  const midpoint = Math.max(1, Math.floor(input.length / 2));
+  const size = Math.max(1, Math.ceil(input.length / parts));
+  const deltas: LanguageModelV2StreamPart[] = [];
+  for (let offset = 0; offset < input.length; offset += size) deltas.push({ type: "tool-input-delta", id, delta: input.slice(offset, offset + size) });
   return [
     { type: "tool-input-start", id, toolName: call.toolName },
-    { type: "tool-input-delta", id, delta: input.slice(0, midpoint) },
-    { type: "tool-input-delta", id, delta: input.slice(midpoint) },
+    ...deltas,
     { type: "tool-input-end", id },
     { type: "tool-call", toolCallId: id, toolName: call.toolName, input },
   ];
 }
 
-function textChunks(output: string): LanguageModelV2StreamPart[] {
+function textChunks(output: string, id = "mock-text"): LanguageModelV2StreamPart[] {
   const third = Math.max(1, Math.floor(output.length / 3));
   return [
-    { type: "text-start", id: "mock-text" },
-    { type: "text-delta", id: "mock-text", delta: output.slice(0, third) },
-    { type: "text-delta", id: "mock-text", delta: output.slice(third, third * 2) },
-    { type: "text-delta", id: "mock-text", delta: output.slice(third * 2) },
-    { type: "text-end", id: "mock-text" },
+    { type: "text-start", id },
+    { type: "text-delta", id, delta: output.slice(0, third) },
+    { type: "text-delta", id, delta: output.slice(third, third * 2) },
+    { type: "text-delta", id, delta: output.slice(third * 2) },
+    { type: "text-end", id },
   ];
 }
 
@@ -108,11 +118,16 @@ async function stream(options: LanguageModelV2CallOptions) {
   const hasToolResult = hasToolResultAfterLatestUser(options);
   const calls = trigger ? toolCalls(trigger, participants(options)) : [];
   const reasoning = trigger ? REASONING_SUMMARIES[trigger] : undefined;
+  const preface = trigger ? PREFACES[trigger] : undefined;
   const chunks: LanguageModelV2StreamPart[] = [{ type: "stream-start", warnings: [] }];
   if (trigger && calls.length && !hasToolResult) {
-    // First step: reasoning (if any) → tool calls, deferring answer text until the tool result returns.
+    // First step: reasoning (if any) → optional preface text → tool calls, deferring the final
+    // answer until the tool result returns.
     if (reasoning) chunks.push(...reasoningChunks("mock-reason-1", reasoning.step1));
-    calls.forEach((call, index) => chunks.push(...toolCallChunks(index, call)));
+    if (preface) chunks.push(...textChunks(preface, "mock-preface"));
+    // MOCK:LIVE streams a long tool input so its "running" row is comfortably observable in e2e.
+    const toolParts = trigger === "MOCK:LIVE" ? 14 : 4;
+    calls.forEach((call, index) => chunks.push(...toolCallChunks(index, call, toolParts)));
     chunks.push({ type: "finish", finishReason: "tool-calls", usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } });
   } else {
     // Final step: a second reasoning block (interleaved) then the answer text.
@@ -120,7 +135,7 @@ async function stream(options: LanguageModelV2CallOptions) {
     chunks.push(...textChunks(trigger ? MOCK_SCRIPTS[trigger] : `MOCK RESPONSE: ${latest}`));
     chunks.push({ type: "finish", finishReason: "stop", usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 } });
   }
-  return { stream: simulateReadableStream({ chunks, chunkDelayInMs: 40 }) };
+  return { stream: simulateReadableStream({ chunks, chunkDelayInMs: 25 }) };
 }
 
 async function generate(options: LanguageModelV2CallOptions) {

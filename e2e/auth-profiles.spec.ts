@@ -69,6 +69,9 @@ test("AC-AUTH-1 AC-AUTH-2 AC-AUTH-4 AC-AUTH-5 AC-PROF-1 AC-PROF-2 AC-PROF-3 AC-M
   await expect(page.getByText("── UP NEXT FOR BLAIR ──")).toBeVisible();
 
   await page.locator("button:visible", { hasText: "LOG OUT" }).click();
+  // Wait for the app's own post-logout redirect (i.e. sign-out has completed) before probing a
+  // protected route, so the assertion is deterministic rather than racing the sign-out request.
+  await expect(page).toHaveURL(/\/login$/);
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/login$/);
 });

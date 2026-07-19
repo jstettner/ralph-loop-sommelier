@@ -109,7 +109,7 @@ describe("chat route and attributed tools", () => {
     }
     expect(db.select().from(tastingNotes).where(eq(tastingNotes.householdId, fixture.householdId)).all().length).toBeGreaterThanOrEqual(3);
     expect(db.select().from(recommendations).where(eq(recommendations.householdId, fixture.householdId)).all()).toHaveLength(2);
-  });
+  }, 30_000); // iterates every scripted trigger through the delayed two-step mock stream
 
   it("AC-LLM-8 streams and executes application tools against a representative Gemma 4 model", async () => {
     const fixture = await makeFixture("gemma-contract", ["Alex"]);

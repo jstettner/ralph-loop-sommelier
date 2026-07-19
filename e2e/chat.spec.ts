@@ -118,3 +118,54 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-RE
   await page.getByRole("button", { name: "START CHAT" }).click();
   await expect(page.getByText(/I want to taste Sauvignon Blanc/)).toBeVisible();
 });
+
+test("AC-CHAT-9 AC-SRCH-7 streamed tool lifecycle rows, safe summaries, and persisted citations", async ({ page }, testInfo) => {
+  const email = `chat9-${testInfo.project.name}@example.test`;
+  await page.goto("/signup");
+  await page.getByLabel("EMAIL").fill(email);
+  await page.getByLabel("PASSWORD").fill("correct-horse");
+  await page.getByRole("button", { name: "CREATE HOUSEHOLD" }).click();
+  await page.getByLabel("TASTER NAME").fill("Robin");
+  await page.getByRole("button", { name: "CREATE TASTER" }).click();
+  await page.getByRole("button", { name: "I'LL FIGURE IT OUT AS I GO" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/chat");
+  await page.getByRole("button", { name: "START CHAT" }).click();
+  await expect(page).toHaveURL(/\/chat\/[0-9a-f-]+$/);
+
+  // ── AC-CHAT-9: progressive text + a tool row that runs then settles in place ──
+  await page.getByRole("textbox", { name: "Message" }).fill("MOCK:LIVE");
+  await page.getByRole("button", { name: "Send message" }).click();
+  const toolRow = page.getByTestId("tool-activity");
+  await expect(toolRow).toHaveAttribute("data-tool-state", "running");
+  // Partial assistant text is visible before the response completes; a duplicate send is blocked.
+  await expect(page.getByText("Working on your tasting note")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
+  // The same row updates in place to its terminal state with a friendly, safe summary.
+  await expect(toolRow).toHaveAttribute("data-tool-state", "completed");
+  await expect(toolRow).toContainText("Recorded tasting note");
+  await expect(toolRow).toContainText("Fixture Malbec");
+  await expect(toolRow).toContainText("Robin");
+  await expect(toolRow).not.toContainText("taster_profile_id");
+  await expect(toolRow).not.toContainText("{");
+  await expect(page.getByText("Logged it — that Malbec is in your journal now.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  // Reload restores the terminal state and never replays the running animation.
+  await page.reload();
+  await expect(page.getByTestId("tool-activity")).toHaveAttribute("data-tool-state", "completed");
+  await expect(page.getByTestId("tool-activity")).toContainText("Recorded tasting note");
+
+  // ── AC-SRCH-7: safe citation links render from search results and survive reload ──
+  await page.getByRole("textbox", { name: "Message" }).fill("MOCK:SEARCH");
+  await page.getByRole("button", { name: "Send message" }).click();
+  const sourceLink = page.getByTestId("source-link").first();
+  await expect(sourceLink).toBeVisible();
+  await expect(sourceLink).toHaveAttribute("href", /^https:\/\//);
+  await expect(sourceLink).not.toContainText("{");
+  // Let the response finish (and persist) before reloading so the citation is restored from storage.
+  await expect(page.getByText("Astor Wines appears in the availability results for Mendoza Malbec.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
+  await page.reload();
+  await expect(page.getByTestId("source-link").first()).toBeVisible();
+  await expect(page.getByTestId("source-link").first()).toHaveAttribute("href", /^https:\/\//);
+});
