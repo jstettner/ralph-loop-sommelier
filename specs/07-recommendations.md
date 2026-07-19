@@ -32,6 +32,13 @@ rather than an opaque `THINKING...` state. The response remains a non-chat opera
 it does not create a conversation or permanent transcript. The overlay dissolves once
 generation completes, then the new recommendation cards render without a page reload.
 
+Both chat and dashboard recommendation requests include the household's current visible
+recommendations in their dynamic model context. The model is explicitly instructed to
+choose a different normalized wine name + producer combination so a repeated request
+produces a useful alternative. The `save_recommendation` tool retains a normalized
+duplicate check only as a safety net: a duplicate attempt returns a retry signal, and
+the bounded tool loop gives the model another step to choose and save a different wine.
+
 ## Lifecycle
 
 `suggested → purchased → tasted`, or `→ dismissed` from any state. Status buttons on
@@ -77,7 +84,10 @@ The post-login landing page. Sections:
   neural trace and safe recommendation-tool state, dissolve the overlay on completion,
   and render the newly persisted cards without reload; errors close the active trace
   and remain actionable in the underlying dashboard (desktop + mobile e2e).
-- **AC-REC-8**: No wine appears more than once across the visible recommendation
-  sections. Duplicate identity is the normalized wine name and producer combination;
-  matching is case-insensitive and ignores surrounding or repeated whitespace
+- **AC-REC-8**: Repeating a recommendation request gives the model the household's
+  visible recommendation catalog and persists a different wine rather than silently
+  reusing or hiding the duplicate. Duplicate identity is the normalized wine name and
+  producer combination; matching is case-insensitive and ignores surrounding or
+  repeated whitespace. The persistence check rejects any attempted duplicate with a
+  retry signal, and no duplicate appears across the visible recommendation sections
   (integration + e2e).
