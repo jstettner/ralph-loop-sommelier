@@ -1,7 +1,7 @@
 # The Goal (paste into /goal)
 
 Build the wine-trainer web app to completion, exactly as specified in `specs/`
-(read `specs/00-architecture.md` first — the stack is pinned; `CLAUDE.md` has the
+(read `specs/00-architecture.md` first — the stack is pinned; `AGENTS.md` has the
 operating rules).
 
 **Definition of done: `./verify.sh --done` exits 0.** That means: typecheck, lint,
