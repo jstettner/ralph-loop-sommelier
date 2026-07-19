@@ -11,6 +11,7 @@
 ## Done
 
 - [x] Curved-glass CRT screen bulge with responsive tube corners, edge refraction, and specular highlight (`specs/10`; AC-UI-2)
+- [x] Natural grape icon palettes: shared silhouette with green-gold, blue-purple, copper-pink, and rose-pink skin treatments (`specs/10`; AC-UI-6)
 - [x] Architecture and data foundation (`specs/00`, `specs/01`, `specs/09`; AC-ARCH-1–5, AC-DATA-1–3, AC-CURR-1)
 - [x] Household auth, profile CRUD/selection, and onboarding quiz/skip (`specs/02`, `specs/06`, `specs/11`; AC-AUTH-1–5, AC-PROF-1–5, AC-MEM-1–2)
 - [x] LLM registry, deterministic mock, memory prompt, tools, chat persistence, and availability providers (`specs/03`, `specs/04`, `specs/08`; AC-LLM-1–5, AC-CHAT-1–6, AC-MEM-3/5, AC-SRCH-1–4, AC-DATA-6)
@@ -38,3 +39,4 @@
 - 2026-07-18: Tailwind v4 emits utilities inside `@layer utilities`, so any UNLAYERED rule in globals.css silently beats utility classes (unlayered > layered regardless of specificity). The bare `a { color: var(--cyan) }` rule was overriding every `text-[var(--…)]` utility on links app-wide (all nav links rendered cyan). Element-level defaults in globals.css must live in `@layer base`.
 - 2026-07-18: A `next dev` server running in the same checkout corrupts `.next` for `verify.sh`'s build+`next start` e2e phase (webpack-runtime `TypeError: a[d] is not a function`, pages 500). Stop `npm run dev` before running the gate.
 - 2026-07-18: Operator authorized a specs/10-ui.md update (own commit, since guard.sh only rejects *uncommitted* operator-file changes): flat 3%-white scanlines replaced by a layered CRT surface (fractal-noise grain, corner vignette, dark 2px scanlines, cyan rolling bar, stepped flicker — adapted from the operator's "Fold Tactical" reference) plus faint dual-layer currentColor phosphor bloom on all text. AC-UI-2's wording still holds verbatim (same `scanlines` testid, `pointer-events: none`, reduced-motion kills the animations), so no test changes were needed.
+- 2026-07-19: Operator authorized the grape sprite spec amendment in its own commit. Natural skin appearance is derived centrally from existing slug + red/white classification, so the visual polish requires no schema or seed migration.

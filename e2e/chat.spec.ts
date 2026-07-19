@@ -103,8 +103,13 @@ test("AC-CHAT-1 AC-CHAT-2 AC-CHAT-3 AC-LLM-5 AC-SRCH-2 AC-JRNL-1 AC-JRNL-2 AC-RE
   await expect(grapeCards).toHaveCount(18);
   await expect(grapeCards.first()).toContainText("Sauvignon Blanc");
   await expect(grapeCards.last()).toContainText("Zinfandel");
+  await expect(page.locator('a[href="/grapes/sauvignon-blanc"] svg')).toHaveAttribute("data-grape-appearance", "green-gold");
+  await expect(page.locator('a[href="/grapes/cabernet-sauvignon"] svg')).toHaveAttribute("data-grape-appearance", "blue-purple");
+  await expect(page.locator('a[href="/grapes/pinot-grigio"] svg')).toHaveAttribute("data-grape-appearance", "copper-pink");
+  await expect(page.locator('a[href="/grapes/gewurztraminer"] svg')).toHaveAttribute("data-grape-appearance", "rose-pink");
   await grapeCards.first().getByRole("link").click();
   await expect(page.getByRole("heading", { name: "Sauvignon Blanc" })).toBeVisible();
+  await expect(page.locator('svg[data-icon="GrapeCluster"][data-grape-appearance="green-gold"]')).toBeVisible();
   await expect(page.getByRole("heading", { name: "── PROFILE ──" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "── CLASSIC REGIONS ──" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "── WHAT TO TASTE FOR ──" })).toBeVisible();

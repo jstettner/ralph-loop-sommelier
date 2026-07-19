@@ -1,9 +1,16 @@
 import React, { type ReactNode, type SVGProps } from "react";
+import type { GrapeAppearance } from "@/lib/grape-appearance";
 
 type IconProps = { size?: 16 | 24 | 32; color?: string } & Omit<SVGProps<SVGSVGElement>, "color">;
 
 const OUTLINE = "#1A1A1C";
 const HIGHLIGHT = "#E8E8E3";
+const GRAPE_PALETTES = {
+  "green-gold": { base: "#9BBF30", highlight: "#E2E98A" },
+  "blue-purple": { base: "#6F4BC8", highlight: "#B9A8EE" },
+  "copper-pink": { base: "#B8735D", highlight: "#E5B09C" },
+  "rose-pink": { base: "#C95B7D", highlight: "#F0A9BD" },
+} as const satisfies Record<GrapeAppearance, { base: string; highlight: string }>;
 
 function PixelIcon({ size = 24, color = "currentColor", children, ...props }: IconProps & { children: ReactNode }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true" style={{ imageRendering: "pixelated" }} {...props}>
@@ -36,19 +43,20 @@ export function Bottle(props: IconProps) {
   </PixelIcon>;
 }
 
-export function GrapeCluster(props: IconProps) {
-  return <PixelIcon data-icon="GrapeCluster" {...props}>
+export function GrapeCluster({ appearance, color, ...props }: IconProps & { appearance?: GrapeAppearance }) {
+  const palette = appearance ? GRAPE_PALETTES[appearance] : undefined;
+  return <PixelIcon data-icon="GrapeCluster" data-grape-appearance={appearance} color={palette?.base ?? color} {...props}>
     <rect x="7" y="0" width="3" height="4" fill={OUTLINE} />
     <rect x="3" y="3" width="10" height="5" fill={OUTLINE} />
     <rect x="4" y="8" width="8" height="3" fill={OUTLINE} />
     <rect x="5" y="11" width="6" height="2" fill={OUTLINE} />
     <rect x="6" y="12" width="4" height="3" fill={OUTLINE} />
-    <rect x="8" y="0" width="1" height="3" fill={HIGHLIGHT} />
+    <rect x="8" y="0" width="1" height="3" fill={palette?.highlight ?? HIGHLIGHT} />
     <rect x="4" y="4" width="8" height="2" />
     <rect x="5" y="7" width="6" height="2" />
     <rect x="6" y="10" width="4" height="2" />
     <rect x="7" y="13" width="2" height="1" />
-    <rect x="5" y="4" width="1" height="1" fill={HIGHLIGHT} opacity=".7" />
+    <rect x="5" y="4" width="1" height="1" fill={palette?.highlight ?? HIGHLIGHT} opacity=".7" />
   </PixelIcon>;
 }
 
