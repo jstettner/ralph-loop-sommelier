@@ -21,4 +21,3 @@ export function recentRun(conversationId: string, householdId: string) {
     eq(chatRuns.conversationId, conversationId), eq(chatRuns.householdId, householdId),
   )).orderBy(desc(chatRuns.updatedAt), desc(chatRuns.id)).get();
 }
-

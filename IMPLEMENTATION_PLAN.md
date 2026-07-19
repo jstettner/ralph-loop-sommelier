@@ -12,7 +12,7 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
 
 ## Next
 
-- [ ] Run `./verify.sh --done`, commit the completed increment, and push `main`.
+- (none — goal complete)
 
 ## Done this session
 
@@ -24,6 +24,9 @@ deterministic mock is enriched so every behavior is provable offline. Real code 
   Typecheck, lint, guard (97/97), build, 37 unit tests, 25 integration tests, and 16
   desktop/mobile Playwright tests are green (AC-DATA-7–8, AC-LLM-10,
   AC-CHAT-11–20, AC-UI-13–14).
+- [x] Completion gate: `./verify.sh --done` covers all 97 ACs and passes typecheck,
+  lint, guard, standalone build, 37 unit tests, 25 integration tests, and 16
+  desktop/mobile Playwright tests.
 
 - [x] Neural-trace final-output handoff: the final assistant text waits for the existing
   750ms decay to unmount, preventing two animated layers from competing; the trace keeps

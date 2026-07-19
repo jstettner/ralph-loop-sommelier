@@ -354,13 +354,14 @@ test("AC-CHAT-12 AC-CHAT-13 AC-CHAT-14 AC-CHAT-15 AC-CHAT-16 AC-CHAT-17 AC-CHAT-
   const trace = page.getByTestId("neural-trace");
   await expect(trace).toBeVisible();
   const offsets = await page.evaluate(() => ({ document: window.scrollY, transcript: document.querySelector<HTMLElement>('[data-testid="chat-transcript"]')?.scrollTop ?? 0 }));
-  await expect(trace).toContainText("80 · checking a safe wine-learning signal");
+  await expect(trace).toContainText("65 · checking a safe wine-learning signal");
   await expect(trace.locator(".neural-trace__body")).toHaveAttribute("data-line-count", "64");
   const traceScroll = await trace.locator(".neural-trace__body").evaluate((element) => ({ top: element.scrollTop, height: element.scrollHeight, client: element.clientHeight }));
   expect(traceScroll.height).toBeGreaterThan(traceScroll.client);
   expect(traceScroll.top).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(offsets.document);
   expect(await transcript.evaluate((element) => element.scrollTop)).toBe(offsets.transcript);
+  await expect(trace).toContainText("80 · checking a safe wine-learning signal");
   await expect(page.getByTestId("chat-transcript").getByText("The long reasoning summary is complete.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();
 
